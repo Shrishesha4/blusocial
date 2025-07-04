@@ -3,7 +3,6 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { auth } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc, getDocs, query, where } from "firebase/firestore";
 
 export async function getAIProfileAdvice(
@@ -27,13 +26,10 @@ export async function getAIProfileAdvice(
   }
 }
 
-export async function pingUser({ pingedId }: { pingedId: string }) {
-  const currentUser = auth.currentUser;
-  if (!currentUser) {
+export async function pingUser({ pingerId, pingedId }: { pingerId: string, pingedId: string }) {
+  if (!pingerId) {
     throw new Error("You must be logged in to ping someone.");
   }
-  
-  const pingerId = currentUser.uid;
 
   if (pingerId === pingedId) {
     throw new Error("You cannot ping yourself.");
@@ -53,12 +49,11 @@ export async function pingUser({ pingedId }: { pingedId: string }) {
   }
 }
 
-export async function getSentPings() {
-  const currentUser = auth.currentUser;
-  if (!currentUser) {
+export async function getSentPings(userId: string) {
+  if (!userId) {
     return [];
   }
-  const q = query(collection(db, "pings"), where("pingerId", "==", currentUser.uid));
+  const q = query(collection(db, "pings"), where("pingerId", "==", userId));
   const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => doc.data().pingedId);
+  return querySnapshot.docs.map(doc => doc.data().pingedId as string);
 }

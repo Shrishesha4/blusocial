@@ -61,7 +61,7 @@ export default function DiscoverPage() {
             .filter(u => u.id !== user.id); 
         setAllUsers(usersList);
 
-        const pingedIds = await getSentPings();
+        const pingedIds = await getSentPings(user.id);
         setSentPings(new Set(pingedIds));
       } catch (error) {
         console.error("Error fetching users or pings:", error);
@@ -96,9 +96,14 @@ export default function DiscoverPage() {
   }, [location, user, currentUserInterests, allUsers]);
   
   const handlePing = useCallback(async (pingedId: string) => {
+    if (!user?.id) {
+      toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in to ping someone." });
+      return;
+    }
+
     setIsPinging(pingedId);
     try {
-        await pingUser({ pingedId });
+        await pingUser({ pingerId: user.id, pingedId });
         setSentPings(prev => new Set(prev).add(pingedId));
         toast({
             title: "Ping Sent!",
@@ -113,7 +118,7 @@ export default function DiscoverPage() {
     } finally {
         setIsPinging(null);
     }
-  }, [toast]);
+  }, [toast, user]);
 
   if (isUserLoading || locationLoading || isFetchingUsers) {
     return (
@@ -163,7 +168,9 @@ export default function DiscoverPage() {
         <h2 className="text-3xl font-headline font-bold mb-6">Discover Nearby</h2>
         {matchedUsers.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {matchedUsers.map(match => (
+            {matchedUsers.map(match => {
+              const hasSocials = match.socials && Object.values(match.socials).some(link => !!link);
+              return (
               <Card key={match.id} className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:border-accent">
                 <CardHeader className="flex flex-row items-center gap-4">
                   <Avatar className="h-12 w-12 border-2 border-primary text-2xl flex items-center justify-center">
@@ -194,9 +201,11 @@ export default function DiscoverPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-wrap gap-2 justify-between items-center">
-                    <Button variant="outline" size="sm" onClick={() => setSelectedUser(match)}>
-                        Connect
-                    </Button>
+                    {hasSocials ? (
+                      <Button variant="outline" size="sm" onClick={() => setSelectedUser(match)}>
+                          Connect
+                      </Button>
+                    ) : <div />}
                     <Button 
                         size="sm" 
                         onClick={() => handlePing(match.id)}
@@ -206,7 +215,7 @@ export default function DiscoverPage() {
                     </Button>
                 </CardFooter>
               </Card>
-            ))}
+            )})}
           </div>
         ) : (
           <div className="flex justify-center items-center h-96">
