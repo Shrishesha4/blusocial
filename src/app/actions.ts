@@ -3,7 +3,7 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction } from "firebase/firestore";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc } from "firebase/firestore";
 import type { User } from "@/lib/types";
 import { adminMessaging } from "@/lib/firebase-admin";
 
@@ -203,6 +203,7 @@ export async function getFriendRequests(userId: string): Promise<User[]> {
     }
     
     const requestIds = userData.friendRequestsReceived as string[];
+    if (requestIds.length === 0) return [];
 
     const requestChunks: string[][] = [];
     for (let i = 0; i < requestIds.length; i += 30) {
@@ -223,4 +224,22 @@ export async function getFriendRequests(userId: string): Promise<User[]> {
     });
 
     return requesters;
+}
+
+export async function sendMessage({ chatId, senderId, text }: { chatId: string, senderId: string, text: string }) {
+  if (!chatId || !senderId || !text.trim()) {
+    throw new Error("Invalid message data.");
+  }
+  try {
+    const messagesCol = collection(db, "chats", chatId, "messages");
+    await addDoc(messagesCol, {
+      senderId,
+      text,
+      timestamp: serverTimestamp(),
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error sending message:", error);
+    throw new Error("Failed to send message.");
+  }
 }

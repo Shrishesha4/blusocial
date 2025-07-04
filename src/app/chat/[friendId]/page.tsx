@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useUser } from '@/context/user-context';
 import { db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, orderBy, onSnapshot, type Timestamp } from 'firebase/firestore';
 import type { User, Message } from '@/lib/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { Send, ArrowLeft, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
-import { io, type Socket } from 'socket.io-client';
+import { sendMessage } from '@/app/actions';
 
 function getChatId(userId1: string, userId2: string) {
     return [userId1, userId2].sort().join('_');
@@ -59,7 +59,6 @@ export default function ChatPage() {
     
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const friendId = params.friendId as string;
-    const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
         if (!isUserLoading && !user) {
@@ -97,27 +96,26 @@ export default function ChatPage() {
                  return;
             }
 
-            const socket = io();
-            socketRef.current = socket;
+            const chatId = getChatId(user.id, friend.id);
+            const messagesQuery = query(collection(db, 'chats', chatId, 'messages'), orderBy('timestamp', 'asc'));
 
-            socket.on('connect', () => {
-                console.log('Connected to socket server with id:', socket.id);
-                const chatId = getChatId(user.id, friend.id);
-                socket.emit('joinRoom', chatId);
+            const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
+                const messagesData = snapshot.docs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        senderId: data.senderId,
+                        text: data.text,
+                        timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() ?? new Date().toISOString()
+                    } as Message;
+                });
+                setMessages(messagesData);
+            }, (error) => {
+                console.error("Error fetching messages:", error);
+                toast({ variant: 'destructive', title: 'Error', description: 'Could not load messages.' });
             });
 
-            socket.on('receiveMessage', (message: Message) => {
-                setMessages((prevMessages) => [...prevMessages, message]);
-            });
-
-            socket.on('disconnect', () => {
-                console.log('Disconnected from socket server');
-            });
-
-            return () => {
-                socket.disconnect();
-                socketRef.current = null;
-            };
+            return () => unsubscribe();
         }
     }, [user, friend, router, toast]);
     
@@ -127,23 +125,19 @@ export default function ChatPage() {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim() || !user || !friend || !socketRef.current) return;
+        if (!newMessage.trim() || !user || !friend) return;
 
         setIsSending(true);
         const chatId = getChatId(user.id, friend.id);
-        const message: Message = {
-            id: new Date().toISOString(),
-            senderId: user.id,
-            text: newMessage,
-            timestamp: new Date().toISOString(),
-        };
-
-        // Optimistically update the UI
-        setMessages((prevMessages) => [...prevMessages, message]);
-        setNewMessage('');
         
-        socketRef.current.emit('sendMessage', { roomId: chatId, message });
-        setIsSending(false);
+        try {
+            await sendMessage({ chatId, senderId: user.id, text: newMessage });
+            setNewMessage('');
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: (error as Error).message });
+        } finally {
+            setIsSending(false);
+        }
     };
 
     if (isUserLoading || isLoading) {
@@ -204,10 +198,10 @@ export default function ChatPage() {
                         onChange={(e) => setNewMessage(e.target.value)}
                         placeholder="Type a message..."
                         autoComplete="off"
-                        disabled={!socketRef.current?.connected}
+                        disabled={isSending}
                     />
-                    <Button type="submit" size="icon" disabled={!newMessage.trim() || !socketRef.current?.connected}>
-                        {!socketRef.current?.connected ? <Loader2 className="animate-spin" /> : <Send />}
+                    <Button type="submit" size="icon" disabled={!newMessage.trim() || isSending}>
+                        {isSending ? <Loader2 className="animate-spin" /> : <Send />}
                     </Button>
                 </form>
             </footer>
