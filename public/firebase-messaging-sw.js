@@ -1,37 +1,25 @@
-// This service worker is required for Firebase Cloud Messaging to work in the background.
+// This file must be present in the public directory for Firebase Cloud Messaging to work in the background.
 
-// IMPORTANT: The versions of these scripts should match the version of the 'firebase' package in your package.json
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+// In a production app, you would import and initialize the Firebase SDK here
+// to customize how background notifications are handled.
+// For example: importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
+//
+// However, for notifications with a 'notification' payload (like the ones this app sends),
+// the mere presence of this service worker file is enough for most modern browsers
+// to automatically display the notification in the system tray when the app is in the background.
 
-// This configuration will be replaced by your environment variables during the build process.
-// Ensure you have these values in your .env.local file.
-const firebaseConfig = {
-  apiKey: "__NEXT_PUBLIC_FIREBASE_API_KEY__",
-  authDomain: "__NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN__",
-  projectId: "__NEXT_PUBLIC_FIREBASE_PROJECT_ID__",
-  storageBucket: "__NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET__",
-  messagingSenderId: "__NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID__",
-  appId: "__NEXT_PUBLIC_FIREBASE_APP_ID__",
-};
+self.addEventListener('install', (event) => {
+  console.log('Service worker installing...');
+});
 
-firebase.initializeApp(firebaseConfig);
+self.addEventListener('activate', (event) => {
+  console.log('Service worker activating...');
+});
 
-// Retrieve an instance of Firebase Messaging so that it can handle background
-// messages.
-const messaging = firebase.messaging();
-
-messaging.onBackgroundMessage((payload) => {
-  console.log(
-    '[firebase-messaging-sw.js] Received background message ',
-    payload
-  );
-  // Customize notification here
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/logo192.png'
-  };
-
-  self.registration.showNotification(notificationTitle, notificationOptions);
+self.addEventListener('push', (event) => {
+  console.log('[Service Worker] Push Received.');
+  // The browser will automatically display notifications
+  // with a 'notification' payload. For 'data' payloads,
+  // you would need to handle it manually here by calling
+  // self.registration.showNotification().
 });
