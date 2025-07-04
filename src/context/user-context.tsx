@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 import { onAuthStateChanged, type User as FirebaseAuthUser } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User } from '@/lib/types';
 
@@ -21,41 +21,49 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    const authUnsubscribe = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser);
-      if (fbUser) {
-        // User is signed in, see if we have their profile
-        const userRef = doc(db, "users", fbUser.uid);
-        const docSnap = await getDoc(userRef);
+      if (!fbUser) {
+        // If user logs out, clear user data and stop loading
+        setUser(null);
+        setIsLoading(false);
+      }
+      // The listener for user data will be set up in the next useEffect
+    });
+    return () => authUnsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (firebaseUser) {
+      setIsLoading(true);
+      const userDocRef = doc(db, 'users', firebaseUser.uid);
+      const docUnsubscribe = onSnapshot(userDocRef, (docSnap) => {
         if (docSnap.exists()) {
           setUser({ id: docSnap.id, ...docSnap.data() } as User);
         } else {
           // This case can happen if user is created but profile creation fails.
-          // Or for brand new sign-ups before profile is created.
           setUser(null);
         }
-      } else {
-        // User is signed out
-        setUser(null);
-      }
-      setIsLoading(false);
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, []);
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Error fetching user data with onSnapshot:", error);
+        setIsLoading(false);
+      });
+      return () => docUnsubscribe();
+    }
+  }, [firebaseUser]);
 
   const updateUser = useCallback(async (data: Partial<Omit<User, 'id' | 'email'>>) => {
     if (!firebaseUser) return;
     
     const userRef = doc(db, "users", firebaseUser.uid);
     try {
-      // Use setDoc with merge to create or update the document
+      // setDoc with merge will create or update. This is good.
+      // With onSnapshot in place, we don't strictly need to update local state here,
+      // but it provides a faster UI feedback before the listener fires.
       await setDoc(userRef, data, { merge: true });
-      // Update local state after successful db write
       setUser(currentUser => {
         if (!currentUser) {
-           // This can happen on first profile save after signup
            const userDoc = {
              id: firebaseUser.uid,
              email: firebaseUser.email!,
@@ -63,8 +71,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
            } as User;
            return userDoc;
         }
-        const updatedUser = { ...currentUser, ...data };
-        return updatedUser;
+        return { ...currentUser, ...data };
       });
     } catch (error) {
       console.error("Error updating user document:", error);

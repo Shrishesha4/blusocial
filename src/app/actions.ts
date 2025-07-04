@@ -3,7 +3,7 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc } from "firebase/firestore";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import type { User } from "@/lib/types";
 
 export async function getAIProfileAdvice(
@@ -84,4 +84,63 @@ export async function getReceivedPings(userId: string): Promise<User[]> {
   );
   
   return pingerProfiles.filter(profile => profile !== null) as User[];
+}
+
+export async function addFriend({ userId, friendId }: { userId: string, friendId: string }) {
+  if (!userId) {
+    throw new Error("You must be logged in to add a friend.");
+  }
+  if (userId === friendId) {
+    throw new Error("You cannot add yourself as a friend.");
+  }
+
+  try {
+    const userRef = doc(db, "users", userId);
+    await updateDoc(userRef, {
+      friends: arrayUnion(friendId)
+    });
+    return { success: true, message: "Friend added!" };
+  } catch (error) {
+    console.error("Error adding friend:", error);
+    throw new Error("Failed to add friend. Please try again.");
+  }
+}
+
+export async function getFriends(userId: string): Promise<User[]> {
+  if (!userId) {
+    return [];
+  }
+
+  const userDoc = await getDoc(doc(db, "users", userId));
+  if (!userDoc.exists() || !userDoc.data().friends || userDoc.data().friends.length === 0) {
+    return [];
+  }
+  
+  let friendIds = userDoc.data().friends as string[];
+
+  if (friendIds.length === 0) {
+    return [];
+  }
+
+  // Firestore 'in' query is limited to 30 items per query.
+  // For this app, we'll chunk the requests if there are more than 30 friends.
+  const friendChunks: string[][] = [];
+  for (let i = 0; i < friendIds.length; i += 30) {
+    friendChunks.push(friendIds.slice(i, i + 30));
+  }
+
+  const friendPromises = friendChunks.map(chunk => 
+    getDocs(query(collection(db, "users"), where("__name__", "in", chunk)))
+  );
+
+  const friendSnapshots = await Promise.all(friendPromises);
+  
+  const friends: User[] = [];
+  friendSnapshots.forEach(snapshot => {
+    snapshot.docs.forEach(doc => {
+      friends.push({ id: doc.id, ...doc.data() } as User);
+    });
+  });
+
+  return friends;
 }

@@ -9,16 +9,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook } from "lucide-react";
+import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook, Users } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getSentPings, pingUser } from "../actions";
+import { getSentPings, pingUser, addFriend } from "../actions";
 
 const SEARCH_RADIUS_KM = 0.5;
 
@@ -32,6 +32,7 @@ export default function DiscoverPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isPinging, setIsPinging] = useState<string | null>(null);
   const [sentPings, setSentPings] = useState<Set<string>>(new Set());
+  const [isAddingFriend, setIsAddingFriend] = useState(false);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -119,6 +120,26 @@ export default function DiscoverPage() {
         setIsPinging(null);
     }
   }, [toast, user]);
+
+  const handleAddFriend = useCallback(async (friendId: string) => {
+    if (!user?.id) {
+        toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
+        return;
+    }
+    setIsAddingFriend(true);
+    try {
+        await addFriend({ userId: user.id, friendId });
+        toast({ title: "Friend Added!", description: "They are now in your friends list." });
+    } catch (error) {
+        toast({
+            variant: "destructive",
+            title: "Failed to add friend",
+            description: (error as Error).message
+        });
+    } finally {
+        setIsAddingFriend(false);
+    }
+  }, [user?.id, toast]);
 
   if (isUserLoading || locationLoading || isFetchingUsers) {
     return (
@@ -272,6 +293,18 @@ export default function DiscoverPage() {
                  <p className="text-sm text-muted-foreground text-center py-4">This user hasn't added any social links yet.</p>
              )}
           </div>
+          <DialogFooter>
+             {selectedUser && user?.friends?.includes(selectedUser.id) ? (
+                 <Button disabled variant="outline">
+                     <Users className="mr-2 h-4 w-4" /> Friends
+                 </Button>
+             ) : (
+                 <Button onClick={() => handleAddFriend(selectedUser!.id)} disabled={isAddingFriend}>
+                     {isAddingFriend ? <Loader2 className="animate-spin mr-2" /> : <Users className="mr-2 h-4 w-4" />}
+                     Add Friend
+                 </Button>
+             )}
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
