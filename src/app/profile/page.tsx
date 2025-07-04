@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
@@ -46,7 +47,7 @@ const profileFormSchema = z.object({
     facebook: z.string().optional(),
   }).optional(),
   profileEmoji: z.string().optional(),
-  discoveryRadius: z.number().min(0.1).max(10).optional(),
+  discoveryRadius: z.number().min(0.1).max(40).optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
@@ -364,7 +365,7 @@ export default function ProfilePage() {
                                 value={[field.value ?? 0.5]}
                                 onValueChange={(value) => field.onChange(value[0])}
                                 min={0.1}
-                                max={10}
+                                max={40}
                                 step={0.1}
                               />
                               <span className="text-sm text-muted-foreground w-24 text-right">

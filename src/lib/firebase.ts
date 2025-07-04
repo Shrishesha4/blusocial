@@ -1,5 +1,6 @@
+
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { getAuth, initializeAuth, indexedDBLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
@@ -14,7 +15,20 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
+
+let auth;
+// During Next.js development, HMR can cause Firebase to be initialized multiple times.
+// We'll try to initialize auth with persistence, and fallback to getAuth() if it's already been set up.
+// Using indexedDBLocalPersistence for more robust session persistence, especially for PWAs on iOS.
+try {
+    auth = initializeAuth(app, {
+        persistence: indexedDBLocalPersistence
+    });
+} catch (error) {
+    // If auth is already initialized, get the existing instance
+    auth = getAuth(app);
+}
+
 const db = getFirestore(app);
 const storage = getStorage(app);
 
