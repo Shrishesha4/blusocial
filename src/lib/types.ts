@@ -21,6 +21,7 @@ export interface User {
   distance?: number;
   fcmTokens?: string[]; // For push notifications
   discoveryRadius?: number;
+  suggestedMatches?: string[]; // To keep track of users already suggested
 }
 
 export interface Message {

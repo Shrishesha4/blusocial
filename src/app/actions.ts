@@ -3,9 +3,10 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc } from "firebase/firestore";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit } from "firebase/firestore";
 import type { User } from "@/lib/types";
 import { adminMessaging } from "@/lib/firebase-admin";
+import { getDistance } from "@/lib/location";
 
 export async function getAIProfileAdvice(
   data: ProfileAdvisorInput
@@ -26,23 +27,41 @@ export async function getAIProfileAdvice(
   }
 }
 
-async function sendPingNotification(pinger: User, pinged: User) {
+async function sendPushNotification({
+  recipient,
+  title,
+  body,
+  url,
+}: {
+  recipient: User;
+  title: string;
+  body: string;
+  url: string;
+}) {
   if (!adminMessaging) {
     console.warn("Firebase Admin SDK or Messaging service not initialized. Skipping push notification. Is GOOGLE_SERVICE_ACCOUNT_JSON configured?");
     return;
   }
   
-  if (!pinged.fcmTokens || pinged.fcmTokens.length === 0) {
-    console.log(`User ${pinged.name} has no FCM tokens, skipping notification.`);
+  if (!recipient.fcmTokens || recipient.fcmTokens.length === 0) {
+    console.log(`User ${recipient.name} has no FCM tokens, skipping notification.`);
     return;
   }
 
   const message = {
     notification: {
-      title: 'You received a new ping!',
-      body: `${pinger.name} just pinged you.`,
+      title,
+      body,
     },
-    tokens: pinged.fcmTokens,
+    webpush: {
+      fcm_options: {
+        link: url,
+      },
+      notification: {
+        icon: "https://raw.githubusercontent.com/Shrishesha4/blusocial/refs/heads/main/src/app/logo192.png",
+      }
+    },
+    tokens: recipient.fcmTokens,
   };
 
   try {
@@ -79,7 +98,12 @@ export async function pingUser({ pingerId, pingedId }: { pingerId: string, pinge
     if (pingerDoc.exists() && pingedDoc.exists()) {
         const pinger = { id: pingerDoc.id, ...pingerDoc.data() } as User;
         const pinged = { id: pingedDoc.id, ...pingedDoc.data() } as User;
-        await sendPingNotification(pinger, pinged);
+        await sendPushNotification({
+          recipient: pinged,
+          title: 'You received a new ping! 👋',
+          body: `${pinger.name} just pinged you.`,
+          url: `/discover`,
+        });
     }
 
     return { success: true, message: "Ping sent!" };
@@ -106,6 +130,20 @@ export async function sendFriendRequest({ senderId, receiverId }: { senderId: st
     batch.update(receiverRef, { friendRequestsReceived: arrayUnion(senderId) });
     await batch.commit();
 
+    const senderDoc = await getDoc(senderRef);
+    const receiverDoc = await getDoc(receiverRef);
+
+    if (senderDoc.exists() && receiverDoc.exists()) {
+      const sender = senderDoc.data() as User;
+      const receiver = receiverDoc.data() as User;
+      await sendPushNotification({
+        recipient: receiver,
+        title: 'New Friend Request! 🤝',
+        body: `${sender.name} wants to be your friend.`,
+        url: '/friends',
+      });
+    }
+
     return { success: true, message: "Friend request sent!" };
   } catch (error) {
     console.error("Error sending friend request:", error);
@@ -117,10 +155,10 @@ export async function acceptFriendRequest({ userId, requesterId }: { userId: str
     if (!userId || !requesterId) throw new Error("Invalid user IDs.");
 
     try {
-        await runTransaction(db, async (transaction) => {
-            const userRef = doc(db, "users", userId);
-            const requesterRef = doc(db, "users", requesterId);
+        const userRef = doc(db, "users", userId);
+        const requesterRef = doc(db, "users", requesterId);
 
+        await runTransaction(db, async (transaction) => {
             transaction.update(userRef, {
                 friends: arrayUnion(requesterId),
                 friendRequestsReceived: arrayRemove(requesterId)
@@ -130,6 +168,21 @@ export async function acceptFriendRequest({ userId, requesterId }: { userId: str
                 friendRequestsSent: arrayRemove(userId)
             });
         });
+
+        const userDoc = await getDoc(userRef);
+        const requesterDoc = await getDoc(requesterRef);
+
+        if (userDoc.exists() && requesterDoc.exists()) {
+          const user = userDoc.data() as User;
+          const requester = requesterDoc.data() as User;
+          await sendPushNotification({
+            recipient: requester,
+            title: 'Friend Request Accepted! 🎉',
+            body: `${user.name} accepted your friend request. You are now friends.`,
+            url: `/chat/${userId}`,
+          });
+        }
+
         return { success: true, message: "Friend request accepted!" };
     } catch (error) {
         console.error("Error accepting friend request:", error);
@@ -237,9 +290,81 @@ export async function sendMessage({ chatId, senderId, text }: { chatId: string, 
       text,
       timestamp: serverTimestamp(),
     });
+
+    // Send notification to the other user in the chat
+    const userIds = chatId.split('_');
+    const receiverId = userIds.find(id => id !== senderId);
+    if (!receiverId) return { success: true };
+
+    const senderDoc = await getDoc(doc(db, 'users', senderId));
+    const receiverDoc = await getDoc(doc(db, 'users', receiverId));
+
+    if (senderDoc.exists() && receiverDoc.exists()) {
+      const sender = senderDoc.data() as User;
+      const receiver = receiverDoc.data() as User;
+      await sendPushNotification({
+        recipient: receiver,
+        title: `New message from ${sender.name}`,
+        body: text,
+        url: `/chat/${senderId}`,
+      });
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Error sending message:", error);
     throw new Error("Failed to send message.");
+  }
+}
+
+// This is a new function that you can trigger (e.g., via a cron job) to suggest matches.
+export async function findAndSuggestMatch(userId: string) {
+  if (!adminMessaging) {
+    console.warn("Notifications are disabled.");
+    return;
+  }
+
+  const userRef = doc(db, "users", userId);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) return;
+
+  const user = { id: userSnap.id, ...userSnap.data() } as User;
+  if (!user.location || !user.interests || user.interests.length === 0) return;
+
+  // Find users within discovery radius
+  const allUsersSnap = await getDocs(collection(db, "users"));
+  const nearbyUsers = allUsersSnap.docs
+    .map(doc => ({ id: doc.id, ...doc.data() } as User))
+    .filter(otherUser => {
+      if (!otherUser.location || otherUser.id === user.id) return false;
+      const distance = getDistance(user.location!.lat, user.location!.lng, otherUser.location.lat, otherUser.location.lng);
+      return distance <= (user.discoveryRadius ?? 0.5);
+    });
+
+  const currentUserInterests = new Set(user.interests);
+  
+  // Find a potential match with shared interests who hasn't been suggested, isn't a friend, and hasn't sent a request.
+  const potentialMatch = nearbyUsers.find(otherUser => {
+    const hasSharedInterests = otherUser.interests?.some(interest => currentUserInterests.has(interest));
+    if (!hasSharedInterests) return false;
+
+    const alreadySuggested = user.suggestedMatches?.includes(otherUser.id);
+    const alreadyFriends = user.friends?.includes(otherUser.id);
+    const hasPendingRequest = user.friendRequestsReceived?.includes(otherUser.id) || user.friendRequestsSent?.includes(otherUser.id);
+
+    return !alreadySuggested && !alreadyFriends && !hasPendingRequest;
+  });
+  
+  if (potentialMatch) {
+    await sendPushNotification({
+      recipient: user,
+      title: '✨ Someone new is nearby!',
+      body: `You and ${potentialMatch.name} have similar interests. Check them out!`,
+      url: '/discover',
+    });
+    // Mark as suggested to avoid re-notifying
+    await updateDoc(userRef, {
+      suggestedMatches: arrayUnion(potentialMatch.id),
+    });
   }
 }

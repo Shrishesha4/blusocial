@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
-import { onAuthStateChanged, type User as FirebaseAuthUser } from 'firebase/auth';
+import { onAuthStateChanged, type User as FirebaseAuthUser, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User } from '@/lib/types';
@@ -21,16 +21,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const authUnsubscribe = onAuthStateChanged(auth, (fbUser) => {
-      setFirebaseUser(fbUser);
-      if (!fbUser) {
-        // If user logs out, clear user data and stop loading
-        setUser(null);
-        setIsLoading(false);
-      }
-      // The listener for user data will be set up in the next useEffect
+    // Set persistence on the client-side, BEFORE setting up the auth state listener.
+    const unsubscribePromise = setPersistence(auth, browserLocalPersistence).then(() => {
+      return onAuthStateChanged(auth, (fbUser) => {
+        setFirebaseUser(fbUser);
+        if (!fbUser) {
+          // If user logs out, clear user data and stop loading
+          setUser(null);
+          setIsLoading(false);
+        }
+        // The listener for user data will be set up in the next useEffect
+      });
     });
-    return () => authUnsubscribe();
+
+    return () => {
+      unsubscribePromise.then(unsubscribe => unsubscribe());
+    };
   }, []);
 
   useEffect(() => {

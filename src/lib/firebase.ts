@@ -16,11 +16,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// getAuth() initializes and returns the Auth instance.
-// By default, it uses 'local' persistence (IndexedDB), which keeps the user
-// signed in across browser sessions. This is the desired behavior.
 const auth = getAuth(app);
-
 const db = getFirestore(app);
 const storage = getStorage(app);
 

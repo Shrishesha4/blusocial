@@ -1,21 +1,23 @@
 {
   "name": "BluSocial",
   "short_name": "BluSocial",
-  "description": "Find people with similar interests near you.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#212936",
-  "theme_color": "#7E22CE",
+  "theme_color": "#212936",
+  "description": "Find people with similar interests near you.",
   "icons": [
     {
-      "src": "https://placehold.co/192x192.png",
+      "src": "https://raw.githubusercontent.com/Shrishesha4/blusocial/refs/heads/main/src/app/logo192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
-      "src": "https://placehold.co/512x512.png",
+      "src": "https://raw.githubusercontent.com/Shrishesha4/blusocial/refs/heads/main/src/app/logo512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }
