@@ -26,5 +26,5 @@ export interface Message {
   id: string;
   text: string;
   senderId: string;
-  timestamp: any; // Firestore Timestamp
+  timestamp: string; // ISO 8601 date string
 }

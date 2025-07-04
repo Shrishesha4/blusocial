@@ -3,8 +3,8 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc } from "firebase/firestore";
-import type { User, Message } from "@/lib/types";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction } from "firebase/firestore";
+import type { User } from "@/lib/types";
 import { adminMessaging } from "@/lib/firebase-admin";
 
 export async function getAIProfileAdvice(
@@ -223,30 +223,4 @@ export async function getFriendRequests(userId: string): Promise<User[]> {
     });
 
     return requesters;
-}
-
-
-function getChatId(userId1: string, userId2: string) {
-    return [userId1, userId2].sort().join('_');
-}
-
-export async function sendMessage({ senderId, receiverId, text }: { senderId: string, receiverId: string, text: string }) {
-    if (!senderId || !receiverId || !text.trim()) {
-        throw new Error("Invalid message data.");
-    }
-
-    const chatId = getChatId(senderId, receiverId);
-    const chatRef = collection(db, 'chats', chatId, 'messages');
-
-    try {
-        await addDoc(chatRef, {
-            senderId,
-            text,
-            timestamp: serverTimestamp()
-        });
-        return { success: true };
-    } catch (error) {
-        console.error("Error sending message:", error);
-        throw new Error("Failed to send message.");
-    }
 }

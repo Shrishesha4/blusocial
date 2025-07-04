@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "outDir": ".next/server",
+    "noEmit": false,
+    "isolatedModules": false
+  },
+  "include": ["server.ts"]
+}
