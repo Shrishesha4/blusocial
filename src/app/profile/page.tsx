@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Instagram, Loader2, Sparkles, Twitter } from "lucide-react";
+import { Bot, Instagram, Loader2, Sparkles, Twitter, Linkedin, Facebook } from "lucide-react";
 import { getAIProfileAdvice } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -37,6 +37,8 @@ const profileFormSchema = z.object({
   socials: z.object({
     twitter: z.string().optional(),
     instagram: z.string().optional(),
+    linkedin: z.string().optional(),
+    facebook: z.string().optional(),
   }).optional(),
   profileEmoji: z.string().optional(),
 });
@@ -93,7 +95,7 @@ export default function ProfilePage() {
         name: "",
         bio: "",
         interests: "",
-        socials: { twitter: "", instagram: "" },
+        socials: { twitter: "", instagram: "", linkedin: "", facebook: "" },
         profileEmoji: "👋",
     },
     mode: "onChange",
@@ -111,6 +113,8 @@ export default function ProfilePage() {
         socials: {
           twitter: user.socials?.twitter ?? "",
           instagram: user.socials?.instagram ?? "",
+          linkedin: user.socials?.linkedin ?? "",
+          facebook: user.socials?.facebook ?? "",
         },
         profileEmoji: user.profileEmoji ?? "👋",
       });
@@ -285,6 +289,38 @@ export default function ProfilePage() {
                       <FormControl>
                         <div className="relative">
                           <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input placeholder="yourhandle" className="pl-8" {...field} />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="socials.linkedin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>LinkedIn</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input placeholder="yourhandle" className="pl-8" {...field} />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="socials.facebook"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Facebook</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Facebook className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                           <Input placeholder="yourhandle" className="pl-8" {...field} />
                         </div>
                       </FormControl>

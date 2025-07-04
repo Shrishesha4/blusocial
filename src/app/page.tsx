@@ -101,7 +101,7 @@ export default function AuthPage() {
         email: data.email,
         bio: "",
         interests: [],
-        socials: { twitter: "", instagram: "" },
+        socials: { twitter: "", instagram: "", linkedin: "", facebook: "" },
         profileEmoji: "👋",
         location: { lat: 34.0522, lng: -118.2437 }, // Default location, user can update later
       };

@@ -7,6 +7,8 @@ export interface User {
   socials?: {
     twitter?: string;
     instagram?: string;
+    linkedin?: string;
+    facebook?: string;
   };
   profileEmoji?: string;
   location?: {
