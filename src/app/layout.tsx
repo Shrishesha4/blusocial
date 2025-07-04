@@ -23,7 +23,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="BluSocial" />
         <meta name="application-name" content="BluSocial" />
         <meta name="theme-color" content="#212936" />
-        <link rel="apple-touch-icon" href="https://drive.google.com/file/d/1eHIt18cuTaXS44uERdxavUVyvoBt7qZO/view?usp=sharing" />
+        <link rel="apple-touch-icon" href="https://drive.google.com/file/d/1eHIt18cuTaXS44uERdxavUVyvoBt7qZO/preview" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
