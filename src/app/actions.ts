@@ -6,6 +6,11 @@ import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profi
 export async function getAIProfileAdvice(
   data: ProfileAdvisorInput
 ): Promise<ProfileAdvisorOutput> {
+  if (!process.env.GOOGLE_API_KEY) {
+    console.error("GOOGLE_API_KEY is not set in the environment.");
+    throw new Error("The AI Advisor is currently unavailable. Please try again later.");
+  }
+  
   // Add a small delay for demo purposes to show loading state
   await new Promise(resolve => setTimeout(resolve, 1000));
   
