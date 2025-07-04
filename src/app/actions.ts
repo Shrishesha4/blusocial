@@ -5,7 +5,7 @@ import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profi
 import { db } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import type { User } from "@/lib/types";
-import { adminDb, adminMessaging } from "@/lib/firebase-admin";
+import { adminMessaging } from "@/lib/firebase-admin";
 
 export async function getAIProfileAdvice(
   data: ProfileAdvisorInput
@@ -27,6 +27,11 @@ export async function getAIProfileAdvice(
 }
 
 async function sendPingNotification(pinger: User, pinged: User) {
+  if (!adminMessaging) {
+    console.warn("Firebase Admin SDK or Messaging service not initialized. Skipping push notification. Is GOOGLE_SERVICE_ACCOUNT_JSON configured?");
+    return;
+  }
+  
   if (!pinged.fcmTokens || pinged.fcmTokens.length === 0) {
     console.log(`User ${pinged.name} has no FCM tokens, skipping notification.`);
     return;
@@ -110,15 +115,16 @@ export async function getFriends(userId: string): Promise<User[]> {
   }
 
   const userDoc = await getDoc(doc(db, "users", userId));
-  if (!userDoc.exists() || !userDoc.data().friends || userDoc.data().friends.length === 0) {
+  if (!userDoc.exists()) {
+    return [];
+  }
+
+  const userData = userDoc.data();
+  if (!userData.friends || !Array.isArray(userData.friends) || userData.friends.length === 0) {
     return [];
   }
   
-  let friendIds = userDoc.data().friends as string[];
-
-  if (friendIds.length === 0) {
-    return [];
-  }
+  const friendIds = userData.friends as string[];
 
   const friendChunks: string[][] = [];
   for (let i = 0; i < friendIds.length; i += 30) {
