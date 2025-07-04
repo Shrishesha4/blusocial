@@ -190,7 +190,6 @@ export default function DiscoverPage() {
         {matchedUsers.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {matchedUsers.map(match => {
-              const hasSocials = match.socials && Object.values(match.socials).some(link => !!link);
               return (
               <Card key={match.id} className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:border-accent">
                 <CardHeader className="flex flex-row items-center gap-4">
@@ -222,11 +221,9 @@ export default function DiscoverPage() {
                   </div>
                 </CardContent>
                 <CardFooter className="flex flex-wrap gap-2 justify-between items-center">
-                    {hasSocials ? (
-                      <Button variant="outline" size="sm" onClick={() => setSelectedUser(match)}>
-                          Connect
-                      </Button>
-                    ) : <div />}
+                    <Button variant="outline" size="sm" onClick={() => setSelectedUser(match)}>
+                        Connect
+                    </Button>
                     <Button 
                         size="sm" 
                         onClick={() => handlePing(match.id)}
