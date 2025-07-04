@@ -5,7 +5,7 @@ import type { User } from "@/lib/types";
 import { useLocation } from "@/hooks/use-location";
 import { getDistance } from "@/lib/location";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -137,14 +137,17 @@ export default function DiscoverPage() {
           {matchedUsers.map(match => (
             <Card key={match.id} className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:border-accent">
               <CardHeader className="flex flex-row items-center gap-4">
-                <Avatar className="h-12 w-12 border-2 border-primary">
-                  <AvatarImage src={match.profileImageUrl} alt={match.name} data-ai-hint="person portrait" />
-                  <AvatarFallback>{match.name.charAt(0)}</AvatarFallback>
+                <Avatar className="h-12 w-12 border-2 border-primary text-2xl flex items-center justify-center">
+                  <AvatarFallback className="bg-transparent">{match.profileEmoji ?? match.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
                   <CardTitle className="font-headline">{match.name}</CardTitle>
                   <CardDescription className="flex items-center gap-1 text-sm">
-                    <MapPin className="h-3 w-3" /> {match.distance?.toFixed(1)} km away
+                    <MapPin className="h-3 w-3" /> 
+                    {match.distance! < 1 
+                      ? `${(match.distance! * 1000).toFixed(0)} m away`
+                      : `${match.distance!.toFixed(1)} km away`
+                    }
                   </CardDescription>
                 </div>
               </CardHeader>

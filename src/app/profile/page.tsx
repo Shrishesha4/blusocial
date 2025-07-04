@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition, useRef } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,8 +18,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Instagram, Loader2, Sparkles, Twitter, Upload } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Bot, Instagram, Loader2, Sparkles, Twitter } from "lucide-react";
 import { getAIProfileAdvice } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -27,8 +27,6 @@ import type { ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/context/user-context";
 import { Skeleton } from "@/components/ui/skeleton";
-import { storage } from "@/lib/firebase";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -40,10 +38,12 @@ const profileFormSchema = z.object({
     twitter: z.string().optional(),
     instagram: z.string().optional(),
   }).optional(),
-  profileImageUrl: z.string().optional(),
+  profileEmoji: z.string().optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
+
+const EMOJI_LIST = ['😀', '😎', '🚀', '🎉', '💡', '❤️', '🌍', '🐶', '🐱', '🍕', '⚽️', '🎨', '🎵', '💻', '✈️', '🤔', '😂', '🥳', '🤯', '👍'];
 
 function ProfileSkeleton() {
     return (
@@ -82,11 +82,10 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const { user, updateUser, isLoading: isUserLoading } = useUser();
   const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [isAdvicePending, startAdviceTransition] = useTransition();
   const [advice, setAdvice] = useState<ProfileAdvisorOutput | null>(null);
   const [isAdvisorOpen, setAdvisorOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -95,7 +94,7 @@ export default function ProfilePage() {
         bio: "",
         interests: "",
         socials: { twitter: "", instagram: "" },
-        profileImageUrl: "",
+        profileEmoji: "👋",
     },
     mode: "onChange",
   });
@@ -113,7 +112,7 @@ export default function ProfilePage() {
           twitter: user.socials?.twitter ?? "",
           instagram: user.socials?.instagram ?? "",
         },
-        profileImageUrl: user.profileImageUrl ?? "",
+        profileEmoji: user.profileEmoji ?? "👋",
       });
     }
   }, [user, isUserLoading, router, form]);
@@ -180,47 +179,14 @@ export default function ProfilePage() {
     });
   }
   
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) return;
-
-    if (!file.type.startsWith("image/")) {
-        toast({
-            variant: "destructive",
-            title: "Invalid File Type",
-            description: "Please select an image file.",
-        });
-        return;
-    }
-
-    setIsUploading(true);
-    try {
-        const pictureRef = storageRef(storage, `profile-pictures/${user.id}/${file.name}`);
-        const snapshot = await uploadBytes(pictureRef, file);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-
-        await updateUser({ profileImageUrl: downloadURL });
-        form.setValue("profileImageUrl", downloadURL);
-
-        toast({
-            title: "Success!",
-            description: "Your profile picture has been updated.",
-        });
-    } catch (error) {
-        console.error("Error uploading profile picture: ", error);
-        toast({
-            variant: "destructive",
-            title: "Upload Failed",
-            description: "Could not upload your picture. Please try again.",
-        });
-    } finally {
-        setIsUploading(false);
-    }
-  };
+  function handleEmojiSelect(emoji: string) {
+    form.setValue("profileEmoji", emoji, { shouldValidate: true });
+    setEmojiPickerOpen(false);
+    toast({
+        title: "Emoji Selected!",
+        description: "Your new emoji has been set. Don't forget to save changes!",
+    });
+  }
 
   if (isUserLoading) {
       return <ProfileSkeleton />;
@@ -237,21 +203,11 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="flex items-center gap-6">
-                 <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handleFileChange}
-                    className="hidden"
-                    accept="image/*"
-                    disabled={isUploading}
-                />
-                <Avatar className="h-20 w-20 border-4 border-primary/50">
-                  <AvatarImage src={form.watch('profileImageUrl')} data-ai-hint="person portrait" />
-                  <AvatarFallback>{form.watch('name')?.charAt(0)?.toUpperCase() ?? 'U'}</AvatarFallback>
+                <Avatar className="h-20 w-20 border-4 border-primary/50 text-4xl flex items-center justify-center">
+                  <AvatarFallback className="bg-transparent">{form.watch('profileEmoji')}</AvatarFallback>
                 </Avatar>
-                <Button type="button" variant="outline" onClick={handleUploadClick} disabled={isUploading}>
-                  {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                  {isUploading ? "Uploading..." : "Upload Picture"}
+                <Button type="button" variant="outline" onClick={() => setEmojiPickerOpen(true)}>
+                  Choose Emoji
                 </Button>
               </div>
 
@@ -383,6 +339,27 @@ export default function ProfilePage() {
             <Button variant="ghost" onClick={() => setAdvisorOpen(false)}>Cancel</Button>
             <Button onClick={applyAdvice}>Apply Suggestions</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      <Dialog open={isEmojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Choose your Emoji</DialogTitle>
+            <DialogDescription>Select an emoji to represent you.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-5 gap-4 py-4 justify-items-center">
+            {EMOJI_LIST.map(emoji => (
+              <button
+                key={emoji}
+                onClick={() => handleEmojiSelect(emoji)}
+                className="text-4xl p-2 rounded-lg hover:bg-accent transition-colors"
+                aria-label={`Select emoji ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </DialogContent>
       </Dialog>
     </>

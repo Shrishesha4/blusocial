@@ -102,7 +102,7 @@ export default function AuthPage() {
         bio: "",
         interests: [],
         socials: { twitter: "", instagram: "" },
-        profileImageUrl: `https://placehold.co/128x128.png`,
+        profileEmoji: "👋",
         location: { lat: 34.0522, lng: -118.2437 }, // Default location, user can update later
       };
       await setDoc(doc(db, "users", firebaseUser.uid), newUser);

@@ -8,7 +8,7 @@ export interface User {
     twitter?: string;
     instagram?: string;
   };
-  profileImageUrl?: string;
+  profileEmoji?: string;
   location?: {
     lat: number;
     lng: number;
