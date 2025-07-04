@@ -187,7 +187,7 @@ export default function ProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Your Profile</CardTitle>
-              <CardDescription>This is how others will see you on GeoMatch.</CardDescription>
+              <CardDescription>This is how others will see you on BluSocial.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="flex items-center gap-6">

@@ -5,7 +5,7 @@ import {AppShell} from '@/components/app-shell';
 import { UserProvider } from '@/context/user-context';
 
 export const metadata: Metadata = {
-  title: 'GeoMatch',
+  title: 'BluSocial',
   description: 'Find people with similar interests near you.',
 };
 

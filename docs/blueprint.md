@@ -1,4 +1,4 @@
-# **App Name**: GeoMatch
+# **App Name**: BluSocial
 
 ## Core Features:
 
