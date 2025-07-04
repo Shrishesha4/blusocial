@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-const SEARCH_RADIUS_KM = 30;
+const SEARCH_RADIUS_KM = 0.5;
 
 export default function DiscoverPage() {
   const router = useRouter();
@@ -184,7 +184,7 @@ export default function DiscoverPage() {
                 <Frown className="h-5 w-5 mx-auto mb-2" />
                 <AlertTitle>No Matches Found</AlertTitle>
                 <AlertDescription>
-                We couldn&apos;t find anyone nearby. Try checking back later, or add more interests to your profile to broaden your search!
+                We couldn&apos;t find anyone nearby. Try checking back later, expanding your search radius, or add more interests to your profile!
                 </AlertDescription>
             </Alert>
         </div>

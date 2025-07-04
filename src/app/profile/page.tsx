@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -27,6 +27,8 @@ import type { ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/context/user-context";
 import { Skeleton } from "@/components/ui/skeleton";
+import { storage } from "@/lib/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -80,9 +82,11 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const { user, updateUser, isLoading: isUserLoading } = useUser();
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isAdvicePending, startAdviceTransition] = useTransition();
   const [advice, setAdvice] = useState<ProfileAdvisorOutput | null>(null);
   const [isAdvisorOpen, setAdvisorOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -175,6 +179,48 @@ export default function ProfilePage() {
       description: "The AI's suggestions have been applied to your profile.",
     });
   }
+  
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    if (!file.type.startsWith("image/")) {
+        toast({
+            variant: "destructive",
+            title: "Invalid File Type",
+            description: "Please select an image file.",
+        });
+        return;
+    }
+
+    setIsUploading(true);
+    try {
+        const pictureRef = storageRef(storage, `profile-pictures/${user.id}/${file.name}`);
+        const snapshot = await uploadBytes(pictureRef, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+
+        await updateUser({ profileImageUrl: downloadURL });
+        form.setValue("profileImageUrl", downloadURL);
+
+        toast({
+            title: "Success!",
+            description: "Your profile picture has been updated.",
+        });
+    } catch (error) {
+        console.error("Error uploading profile picture: ", error);
+        toast({
+            variant: "destructive",
+            title: "Upload Failed",
+            description: "Could not upload your picture. Please try again.",
+        });
+    } finally {
+        setIsUploading(false);
+    }
+  };
 
   if (isUserLoading) {
       return <ProfileSkeleton />;
@@ -191,13 +237,21 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="flex items-center gap-6">
+                 <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                    accept="image/*"
+                    disabled={isUploading}
+                />
                 <Avatar className="h-20 w-20 border-4 border-primary/50">
                   <AvatarImage src={form.watch('profileImageUrl')} data-ai-hint="person portrait" />
                   <AvatarFallback>{form.watch('name')?.charAt(0)?.toUpperCase() ?? 'U'}</AvatarFallback>
                 </Avatar>
-                <Button type="button" variant="outline">
-                  <Upload className="mr-2 h-4 w-4" />
-                  Upload Picture
+                <Button type="button" variant="outline" onClick={handleUploadClick} disabled={isUploading}>
+                  {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  {isUploading ? "Uploading..." : "Upload Picture"}
                 </Button>
               </div>
 
