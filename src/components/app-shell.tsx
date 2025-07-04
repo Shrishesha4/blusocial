@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import React from 'react';
+import React, { useEffect } from 'react';
 import { usePathname, useRouter } from "next/navigation";
 import Link from 'next/link';
 import {
@@ -15,14 +15,15 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Home, LogOut, UserCircle, Bell, Users } from "lucide-react";
+import { Home, LogOut, UserCircle, Users } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
 import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "./ui/button";
+import { collection, query, where, onSnapshot, Timestamp, getDoc, doc } from "firebase/firestore";
 
 function Logo() {
   return (
@@ -44,7 +45,6 @@ function BottomNavBar({ pathname, onSignOut }: { pathname: string, onSignOut: ()
   const navItems = [
     { href: "/discover", label: "Discover", icon: Home },
     { href: "/friends", label: "Friends", icon: Users },
-    { href: "/pings", label: "Pings", icon: Bell },
     { href: "/profile", label: "Profile", icon: UserCircle },
   ];
 
@@ -90,6 +90,44 @@ export function AppShell({ children }: { children: ReactNode }) {
       toast({ variant: "destructive", title: "Sign Out Error", description: "Could not sign you out. Please try again." });
     }
   };
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Use a timestamp from when the component mounts to avoid showing old pings
+    const listenTimestamp = Timestamp.now();
+
+    const q = query(
+        collection(db, "pings"),
+        where("pingedId", "==", user.id),
+        where("timestamp", ">", listenTimestamp)
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+        for (const change of snapshot.docChanges()) {
+            if (change.type === "added") {
+                const pingData = change.doc.data();
+                const pingerId = pingData.pingerId;
+                
+                if (pingerId === user.id) continue; // Don't notify for self-pings
+
+                // Fetch pinger's profile to get their name
+                const userDocRef = doc(db, "users", pingerId);
+                const userDocSnap = await getDoc(userDocRef);
+
+                if (userDocSnap.exists()) {
+                    const pingerName = userDocSnap.data().name;
+                    toast({
+                        title: "New Ping!",
+                        description: `${pingerName} pinged you.`,
+                    });
+                }
+            }
+        }
+    });
+
+    return () => unsubscribe();
+  }, [user?.id, toast]);
 
   const isAuthPage = pathname === '/';
 
@@ -142,19 +180,6 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <a href="/friends">
                     <Users />
                     <span>Friends</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  href="/pings"
-                  asChild
-                  isActive={pathname === "/pings"}
-                  tooltip={{ children: "Pings", side: "right" }}
-                >
-                  <a href="/pings">
-                    <Bell />
-                    <span>Pings</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>

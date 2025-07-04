@@ -18,7 +18,7 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { getSentPings, pingUser, addFriend } from "../actions";
+import { pingUser, addFriend } from "../actions";
 
 const SEARCH_RADIUS_KM = 0.5;
 
@@ -31,7 +31,6 @@ export default function DiscoverPage() {
   const [isFetchingUsers, setIsFetchingUsers] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isPinging, setIsPinging] = useState<string | null>(null);
-  const [sentPings, setSentPings] = useState<Set<string>>(new Set());
   const [isAddingFriend, setIsAddingFriend] = useState(false);
 
   useEffect(() => {
@@ -52,7 +51,7 @@ export default function DiscoverPage() {
   useEffect(() => {
     if (!user) return; 
 
-    const fetchUsersAndPings = async () => {
+    const fetchUsers = async () => {
       setIsFetchingUsers(true);
       try {
         const usersCol = collection(db, "users");
@@ -61,17 +60,14 @@ export default function DiscoverPage() {
             .map(doc => ({ id: doc.id, ...doc.data() } as User))
             .filter(u => u.id !== user.id); 
         setAllUsers(usersList);
-
-        const pingedIds = await getSentPings(user.id);
-        setSentPings(new Set(pingedIds));
       } catch (error) {
-        console.error("Error fetching users or pings:", error);
+        console.error("Error fetching users:", error);
       } finally {
         setIsFetchingUsers(false);
       }
     };
 
-    fetchUsersAndPings();
+    fetchUsers();
   }, [user]);
 
   const currentUserInterests = useMemo(() => new Set(user?.interests ?? []), [user]);
@@ -105,7 +101,6 @@ export default function DiscoverPage() {
     setIsPinging(pingedId);
     try {
         await pingUser({ pingerId: user.id, pingedId });
-        setSentPings(prev => new Set(prev).add(pingedId));
         toast({
             title: "Ping Sent!",
             description: "They'll see your interest."
@@ -227,9 +222,9 @@ export default function DiscoverPage() {
                     <Button 
                         size="sm" 
                         onClick={() => handlePing(match.id)}
-                        disabled={sentPings.has(match.id) || !!isPinging}
+                        disabled={isPinging === match.id}
                     >
-                        {isPinging === match.id ? <Loader2 className="animate-spin" /> : sentPings.has(match.id) ? 'Pinged' : <Send />}
+                        {isPinging === match.id ? <Loader2 className="animate-spin" /> : <Send />}
                     </Button>
                 </CardFooter>
               </Card>

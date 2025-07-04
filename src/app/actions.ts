@@ -50,42 +50,6 @@ export async function pingUser({ pingerId, pingedId }: { pingerId: string, pinge
   }
 }
 
-export async function getSentPings(userId: string) {
-  if (!userId) {
-    return [];
-  }
-  const q = query(collection(db, "pings"), where("pingerId", "==", userId));
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => doc.data().pingedId as string);
-}
-
-export async function getReceivedPings(userId: string): Promise<User[]> {
-  if (!userId) {
-    return [];
-  }
-
-  const pingsQuery = query(collection(db, "pings"), where("pingedId", "==", userId));
-  const pingsSnapshot = await getDocs(pingsQuery);
-
-  if (pingsSnapshot.empty) {
-    return [];
-  }
-
-  const pingerIds = pingsSnapshot.docs.map(doc => doc.data().pingerId as string);
-
-  const pingerProfiles = await Promise.all(
-    pingerIds.map(async (id) => {
-      const userDoc = await getDoc(doc(db, "users", id));
-      if (userDoc.exists()) {
-        return { id: userDoc.id, ...userDoc.data() } as User;
-      }
-      return null;
-    })
-  );
-  
-  return pingerProfiles.filter(profile => profile !== null) as User[];
-}
-
 export async function addFriend({ userId, friendId }: { userId: string, friendId: string }) {
   if (!userId) {
     throw new Error("You must be logged in to add a friend.");
