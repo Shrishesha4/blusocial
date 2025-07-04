@@ -30,6 +30,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Slider } from "@/components/ui/slider";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -44,6 +46,7 @@ const profileFormSchema = z.object({
     facebook: z.string().optional(),
   }).optional(),
   profileEmoji: z.string().optional(),
+  discoveryRadius: z.number().min(0.1).max(10).optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
@@ -100,6 +103,7 @@ export default function ProfilePage() {
         interests: "",
         socials: { twitter: "", instagram: "", linkedin: "", facebook: "" },
         profileEmoji: "👋",
+        discoveryRadius: 0.5,
     },
     mode: "onChange",
   });
@@ -120,6 +124,7 @@ export default function ProfilePage() {
           facebook: user.socials?.facebook ?? "",
         },
         profileEmoji: user.profileEmoji ?? "👋",
+        discoveryRadius: user.discoveryRadius ?? 0.5,
       });
     }
   }, [user, isUserLoading, router, form]);
@@ -342,6 +347,41 @@ export default function ProfilePage() {
                   )}
                 />
               </div>
+
+              <Accordion type="single" collapsible className="w-full">
+                <AccordionItem value="advanced-settings">
+                  <AccordionTrigger className="text-base">Advanced Settings</AccordionTrigger>
+                  <AccordionContent className="pt-4">
+                    <FormField
+                      control={form.control}
+                      name="discoveryRadius"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Discovery Radius</FormLabel>
+                          <FormControl>
+                            <div className="flex items-center gap-4">
+                              <Slider
+                                value={[field.value ?? 0.5]}
+                                onValueChange={(value) => field.onChange(value[0])}
+                                min={0.1}
+                                max={10}
+                                step={0.1}
+                              />
+                              <span className="text-sm text-muted-foreground w-24 text-right">
+                                {(field.value ?? 0.5).toFixed(1)} km
+                              </span>
+                            </div>
+                          </FormControl>
+                          <FormDescription>
+                            Set the maximum distance to discover other users.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
               
               <div className="flex items-end gap-4">
                   <Button type="button" variant="outline" onClick={handleGetAdvice} disabled={isAdvicePending}>

@@ -20,8 +20,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { useToast } from "@/hooks/use-toast";
 import { pingUser, sendFriendRequest } from "../actions";
 
-const SEARCH_RADIUS_KM = 0.5;
-
 type RequestStatus = 'add' | 'sent' | 'friends';
 
 
@@ -92,13 +90,15 @@ export default function DiscoverPage() {
   const matchedUsers = useMemo(() => {
     if (!location || !user || !allUsers.length) return [];
 
+    const searchRadius = user.discoveryRadius ?? 0.5;
+
     const nearbyUsers = allUsers
       .filter(otherUser => otherUser.location)
       .map(otherUser => ({
         ...otherUser,
         distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
       }))
-      .filter(otherUser => otherUser.distance! <= SEARCH_RADIUS_KM);
+      .filter(otherUser => otherUser.distance! <= searchRadius);
 
     const filteredUsers = currentUserInterests.size === 0
         ? nearbyUsers
@@ -254,7 +254,7 @@ export default function DiscoverPage() {
                   <Frown className="h-5 w-5 mx-auto mb-2" />
                   <AlertTitle>No Matches Found</AlertTitle>
                   <AlertDescription>
-                  We couldn&apos;t find anyone nearby. Try checking back later or add more interests to your profile!
+                  We couldn&apos;t find anyone nearby. Try increasing your discovery radius or check back later!
                   </AlertDescription>
               </Alert>
           </div>

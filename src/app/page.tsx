@@ -107,6 +107,7 @@ export default function AuthPage() {
         socials: { twitter: "", instagram: "", linkedin: "", facebook: "" },
         profileEmoji: "👋",
         location: { lat: 34.0522, lng: -118.2437 }, // Default location, user can update later
+        discoveryRadius: 0.5, // Default radius in KM
       };
       await setDoc(doc(db, "users", firebaseUser.uid), newUser);
 
@@ -139,7 +140,7 @@ export default function AuthPage() {
                         className="h-8 w-8 fill-primary"
                         aria-hidden="true"
                     >
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5-2.5z" />
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
                     </svg>
                     <h1 className="text-2xl font-headline font-semibold text-primary">BluSocial</h1>
                 </div>

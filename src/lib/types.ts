@@ -20,6 +20,7 @@ export interface User {
   };
   distance?: number;
   fcmTokens?: string[]; // For push notifications
+  discoveryRadius?: number;
 }
 
 export interface Message {
