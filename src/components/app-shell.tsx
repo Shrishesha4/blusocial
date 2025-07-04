@@ -13,6 +13,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuBadge,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Home, UserCircle, Users } from "lucide-react";
@@ -40,22 +41,29 @@ function Logo() {
   );
 }
 
-function BottomNavBar({ pathname }: { pathname: string }) {
+function BottomNavBar({ pathname, requestCount }: { pathname: string, requestCount: number }) {
   const navItems = [
-    { href: "/discover", label: "Discover", icon: Home },
-    { href: "/friends", label: "Friends", icon: Users },
-    { href: "/profile", label: "Profile", icon: UserCircle },
+    { href: "/discover", label: "Discover", icon: Home, requests: 0 },
+    { href: "/friends", label: "Friends", icon: Users, requests: requestCount },
+    { href: "/profile", label: "Profile", icon: UserCircle, requests: 0 },
   ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-10 md:hidden">
       <div className="flex justify-around h-16">
-        {navItems.map(({ href, label, icon: Icon }) => (
+        {navItems.map(({ href, label, icon: Icon, requests }) => (
           <Link key={href} href={href} className={cn(
             "flex flex-col items-center justify-center w-full gap-1 text-sm transition-colors",
             pathname === href ? "text-primary" : "text-muted-foreground hover:text-foreground"
           )}>
-              <Icon className="h-5 w-5" />
+              <div className="relative">
+                <Icon className="h-5 w-5" />
+                {requests > 0 && (
+                    <span className="absolute top-[-2px] right-[-6px] flex h-4 w-4 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">
+                        {requests}
+                    </span>
+                )}
+              </div>
               <span>{label}</span>
           </Link>
         ))}
@@ -145,6 +153,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     )
   }
 
+  const friendRequestCount = user?.friendRequestsReceived?.length ?? 0;
+
   return (
     <SidebarProvider>
       {isClient && !isMobile && (
@@ -171,12 +181,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <SidebarMenuButton
                   href="/friends"
                   asChild
-                  isActive={pathname === "/friends"}
+                  isActive={pathname.startsWith("/friends") || pathname.startsWith("/chat")}
                   tooltip={{ children: "Friends", side: "right" }}
                 >
                   <a href="/friends">
                     <Users />
                     <span>Friends</span>
+                     {friendRequestCount > 0 && (
+                        <SidebarMenuBadge>{friendRequestCount}</SidebarMenuBadge>
+                     )}
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -209,7 +222,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
           <main>{children}</main>
         </div>
-        {isClient && isMobile && user && <BottomNavBar pathname={pathname} />}
+        {isClient && isMobile && user && <BottomNavBar pathname={pathname} requestCount={friendRequestCount}/>}
       </SidebarInset>
     </SidebarProvider>
   );

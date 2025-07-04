@@ -5,6 +5,8 @@ export interface User {
   bio?: string;
   interests?: string[];
   friends?: string[];
+  friendRequestsSent?: string[];
+  friendRequestsReceived?: string[];
   socials?: {
     twitter?: string;
     instagram?: string;
@@ -18,4 +20,11 @@ export interface User {
   };
   distance?: number;
   fcmTokens?: string[]; // For push notifications
+}
+
+export interface Message {
+  id: string;
+  text: string;
+  senderId: string;
+  timestamp: any; // Firestore Timestamp
 }

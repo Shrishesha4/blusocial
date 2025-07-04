@@ -3,8 +3,8 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
-import type { User } from "@/lib/types";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc } from "firebase/firestore";
+import type { User, Message } from "@/lib/types";
 import { adminMessaging } from "@/lib/firebase-admin";
 
 export async function getAIProfileAdvice(
@@ -89,42 +89,86 @@ export async function pingUser({ pingerId, pingedId }: { pingerId: string, pinge
   }
 }
 
-export async function addFriend({ userId, friendId }: { userId: string, friendId: string }) {
-  if (!userId) {
-    throw new Error("You must be logged in to add a friend.");
+export async function sendFriendRequest({ senderId, receiverId }: { senderId: string, receiverId: string }) {
+  if (!senderId || !receiverId) {
+    throw new Error("Invalid user IDs provided.");
   }
-  if (userId === friendId) {
-    throw new Error("You cannot add yourself as a friend.");
+  if (senderId === receiverId) {
+    throw new Error("You cannot send a friend request to yourself.");
   }
-
+  
   try {
-    const userRef = doc(db, "users", userId);
-    await updateDoc(userRef, {
-      friends: arrayUnion(friendId)
-    });
-    return { success: true, message: "Friend added!" };
+    const senderRef = doc(db, "users", senderId);
+    const receiverRef = doc(db, "users", receiverId);
+
+    const batch = writeBatch(db);
+    batch.update(senderRef, { friendRequestsSent: arrayUnion(receiverId) });
+    batch.update(receiverRef, { friendRequestsReceived: arrayUnion(senderId) });
+    await batch.commit();
+
+    return { success: true, message: "Friend request sent!" };
   } catch (error) {
-    console.error("Error adding friend:", error);
-    throw new Error("Failed to add friend. Please try again.");
+    console.error("Error sending friend request:", error);
+    throw new Error("Failed to send friend request.");
   }
 }
 
+export async function acceptFriendRequest({ userId, requesterId }: { userId: string, requesterId: string }) {
+    if (!userId || !requesterId) throw new Error("Invalid user IDs.");
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const userRef = doc(db, "users", userId);
+            const requesterRef = doc(db, "users", requesterId);
+
+            transaction.update(userRef, {
+                friends: arrayUnion(requesterId),
+                friendRequestsReceived: arrayRemove(requesterId)
+            });
+            transaction.update(requesterRef, {
+                friends: arrayUnion(userId),
+                friendRequestsSent: arrayRemove(userId)
+            });
+        });
+        return { success: true, message: "Friend request accepted!" };
+    } catch (error) {
+        console.error("Error accepting friend request:", error);
+        throw new Error("Failed to accept friend request.");
+    }
+}
+
+
+export async function declineFriendRequest({ userId, requesterId }: { userId: string, requesterId: string }) {
+    if (!userId || !requesterId) throw new Error("Invalid user IDs.");
+    
+    try {
+        const batch = writeBatch(db);
+        const userRef = doc(db, "users", userId);
+        const requesterRef = doc(db, "users", requesterId);
+
+        batch.update(userRef, { friendRequestsReceived: arrayRemove(requesterId) });
+        batch.update(requesterRef, { friendRequestsSent: arrayRemove(userId) });
+        await batch.commit();
+        
+        return { success: true, message: "Friend request declined." };
+    } catch (error) {
+        console.error("Error declining friend request:", error);
+        throw new Error("Failed to decline friend request.");
+    }
+}
+
+
 export async function getFriends(userId: string): Promise<User[]> {
-  if (!userId) {
-    return [];
-  }
+  if (!userId) return [];
 
   const userDoc = await getDoc(doc(db, "users", userId));
-  if (!userDoc.exists()) {
-    return [];
-  }
+  if (!userDoc.exists()) return [];
 
   const userData = userDoc.data();
-  if (!userData.friends || !Array.isArray(userData.friends) || userData.friends.length === 0) {
-    return [];
-  }
+  if (!userData.friends || userData.friends.length === 0) return [];
   
   const friendIds = userData.friends as string[];
+  if (friendIds.length === 0) return [];
 
   const friendChunks: string[][] = [];
   for (let i = 0; i < friendIds.length; i += 30) {
@@ -145,4 +189,64 @@ export async function getFriends(userId: string): Promise<User[]> {
   });
 
   return friends;
+}
+
+export async function getFriendRequests(userId: string): Promise<User[]> {
+    if (!userId) return [];
+
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (!userDoc.exists()) return [];
+
+    const userData = userDoc.data();
+    if (!userData.friendRequestsReceived || userData.friendRequestsReceived.length === 0) {
+        return [];
+    }
+    
+    const requestIds = userData.friendRequestsReceived as string[];
+
+    const requestChunks: string[][] = [];
+    for (let i = 0; i < requestIds.length; i += 30) {
+        requestChunks.push(requestIds.slice(i, i + 30));
+    }
+
+    const requestPromises = requestChunks.map(chunk => 
+        getDocs(query(collection(db, "users"), where("__name__", "in", chunk)))
+    );
+
+    const requestSnapshots = await Promise.all(requestPromises);
+    
+    const requesters: User[] = [];
+    requestSnapshots.forEach(snapshot => {
+        snapshot.docs.forEach(doc => {
+            requesters.push({ id: doc.id, ...doc.data() } as User);
+        });
+    });
+
+    return requesters;
+}
+
+
+function getChatId(userId1: string, userId2: string) {
+    return [userId1, userId2].sort().join('_');
+}
+
+export async function sendMessage({ senderId, receiverId, text }: { senderId: string, receiverId: string, text: string }) {
+    if (!senderId || !receiverId || !text.trim()) {
+        throw new Error("Invalid message data.");
+    }
+
+    const chatId = getChatId(senderId, receiverId);
+    const chatRef = collection(db, 'chats', chatId, 'messages');
+
+    try {
+        await addDoc(chatRef, {
+            senderId,
+            text,
+            timestamp: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error sending message:", error);
+        throw new Error("Failed to send message.");
+    }
 }

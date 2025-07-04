@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook, Users } from "lucide-react";
+import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook, Users, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
@@ -18,9 +18,12 @@ import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { pingUser, addFriend } from "../actions";
+import { pingUser, sendFriendRequest } from "../actions";
 
 const SEARCH_RADIUS_KM = 0.5;
+
+type RequestStatus = 'add' | 'sent' | 'friends';
+
 
 export default function DiscoverPage() {
   const router = useRouter();
@@ -31,7 +34,8 @@ export default function DiscoverPage() {
   const [isFetchingUsers, setIsFetchingUsers] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isPinging, setIsPinging] = useState<string | null>(null);
-  const [isAddingFriend, setIsAddingFriend] = useState(false);
+  const [isSendingRequest, setIsSendingRequest] = useState(false);
+  const [requestStatus, setRequestStatus] = useState<RequestStatus>('add');
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -69,6 +73,19 @@ export default function DiscoverPage() {
 
     fetchUsers();
   }, [user]);
+
+  useEffect(() => {
+    if (user && selectedUser) {
+        if (user.friends?.includes(selectedUser.id)) {
+            setRequestStatus('friends');
+        } else if (user.friendRequestsSent?.includes(selectedUser.id)) {
+            setRequestStatus('sent');
+        } else {
+            setRequestStatus('add');
+        }
+    }
+  }, [user, selectedUser]);
+
 
   const currentUserInterests = useMemo(() => new Set(user?.interests ?? []), [user]);
 
@@ -116,23 +133,24 @@ export default function DiscoverPage() {
     }
   }, [toast, user]);
 
-  const handleAddFriend = useCallback(async (friendId: string) => {
+  const handleSendFriendRequest = useCallback(async (receiverId: string) => {
     if (!user?.id) {
         toast({ variant: "destructive", title: "Authentication Error", description: "You must be logged in." });
         return;
     }
-    setIsAddingFriend(true);
+    setIsSendingRequest(true);
     try {
-        await addFriend({ userId: user.id, friendId });
-        toast({ title: "Friend Added!", description: "They are now in your friends list." });
+        await sendFriendRequest({ senderId: user.id, receiverId });
+        toast({ title: "Friend Request Sent!", description: "They will be notified." });
+        setRequestStatus('sent');
     } catch (error) {
         toast({
             variant: "destructive",
-            title: "Failed to add friend",
+            title: "Failed to send request",
             description: (error as Error).message
         });
     } finally {
-        setIsAddingFriend(false);
+        setIsSendingRequest(false);
     }
   }, [user?.id, toast]);
 
@@ -286,16 +304,20 @@ export default function DiscoverPage() {
              )}
           </div>
           <DialogFooter>
-             {selectedUser && user?.friends?.includes(selectedUser.id) ? (
-                 <Button disabled variant="outline">
-                     <Users className="mr-2 h-4 w-4" /> Friends
-                 </Button>
-             ) : (
-                 <Button onClick={() => handleAddFriend(selectedUser!.id)} disabled={isAddingFriend}>
-                     {isAddingFriend ? <Loader2 className="animate-spin mr-2" /> : <Users className="mr-2 h-4 w-4" />}
-                     Add Friend
-                 </Button>
-             )}
+            {requestStatus === 'add' && (
+                <Button onClick={() => handleSendFriendRequest(selectedUser!.id)} disabled={isSendingRequest}>
+                    {isSendingRequest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                    Send Friend Request
+                </Button>
+            )}
+            {requestStatus === 'sent' && (
+                <Button disabled variant="outline">Request Sent</Button>
+            )}
+            {requestStatus === 'friends' && (
+                <Button disabled variant="outline">
+                    <Users className="mr-2 h-4 w-4" /> Friends
+                </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
