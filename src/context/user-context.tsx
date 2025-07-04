@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 import { onAuthStateChanged, type User as FirebaseAuthUser } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -45,7 +45,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const updateUser = async (data: Partial<Omit<User, 'id' | 'email'>>) => {
+  const updateUser = useCallback(async (data: Partial<Omit<User, 'id' | 'email'>>) => {
     if (!firebaseUser) return;
     
     const userRef = doc(db, "users", firebaseUser.uid);
@@ -70,7 +70,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       console.error("Error updating user document:", error);
       throw new Error("Failed to update profile.");
     }
-  };
+  }, [firebaseUser]);
 
   return (
     <UserContext.Provider value={{ user, firebaseUser, isLoading, updateUser }}>

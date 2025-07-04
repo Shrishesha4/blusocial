@@ -20,7 +20,7 @@ const SEARCH_RADIUS_KM = 30;
 
 export default function DiscoverPage() {
   const router = useRouter();
-  const { user, isLoading: isUserLoading } = useUser();
+  const { user, isLoading: isUserLoading, updateUser } = useUser();
   const { location, loading: locationLoading, error: locationError } = useLocation();
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isFetchingUsers, setIsFetchingUsers] = useState(true);
@@ -30,6 +30,16 @@ export default function DiscoverPage() {
       router.replace("/");
     }
   }, [user, isUserLoading, router]);
+
+  useEffect(() => {
+    if (location && user?.id) {
+      // Update user's location in Firestore in the background
+      updateUser({ location: { lat: location.latitude, lng: location.longitude } })
+        .catch(err => {
+            console.error("Failed to update user location in Firestore:", err);
+        });
+    }
+  }, [location, user?.id, updateUser]);
   
   useEffect(() => {
     if (!user) return; // Don't fetch if there's no logged in user
@@ -58,15 +68,23 @@ export default function DiscoverPage() {
   const matchedUsers = useMemo(() => {
     if (!location || !user || !allUsers.length) return [];
 
-    return allUsers
+    const nearbyUsers = allUsers
       .filter(otherUser => otherUser.location) // Ensure other user has location data
       .map(otherUser => ({
         ...otherUser,
         distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
       }))
-      .filter(otherUser => otherUser.distance! <= SEARCH_RADIUS_KM)
-      .filter(otherUser => otherUser.interests?.some(interest => currentUserInterests.includes(interest)))
-      .sort((a, b) => a.distance! - b.distance!);
+      .filter(otherUser => otherUser.distance! <= SEARCH_RADIUS_KM);
+
+    // If the current user has no interests, show all nearby users.
+    // Otherwise, filter by matching interests.
+    const filteredUsers = currentUserInterests.length === 0
+        ? nearbyUsers
+        : nearbyUsers.filter(otherUser =>
+            otherUser.interests?.some(interest => currentUserInterests.includes(interest))
+        );
+
+    return filteredUsers.sort((a, b) => a.distance! - b.distance!);
   }, [location, user, currentUserInterests, allUsers]);
 
   if (isUserLoading || locationLoading || isFetchingUsers) {
@@ -166,7 +184,7 @@ export default function DiscoverPage() {
                 <Frown className="h-5 w-5 mx-auto mb-2" />
                 <AlertTitle>No Matches Found</AlertTitle>
                 <AlertDescription>
-                We couldn&apos;t find anyone nearby who shares your interests. Try broadening your interests or checking back later!
+                We couldn&apos;t find anyone nearby. Try checking back later, or add more interests to your profile to broaden your search!
                 </AlertDescription>
             </Alert>
         </div>
