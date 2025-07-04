@@ -17,4 +17,5 @@ export interface User {
     lng: number;
   };
   distance?: number;
+  fcmTokens?: string[]; // For push notifications
 }

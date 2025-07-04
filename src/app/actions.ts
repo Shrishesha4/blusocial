@@ -5,6 +5,7 @@ import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profi
 import { db } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import type { User } from "@/lib/types";
+import { adminDb, adminMessaging } from "@/lib/firebase-admin";
 
 export async function getAIProfileAdvice(
   data: ProfileAdvisorInput
@@ -14,7 +15,6 @@ export async function getAIProfileAdvice(
     throw new Error("The AI Advisor is currently unavailable. Please try again later.");
   }
   
-  // Add a small delay for demo purposes to show loading state
   await new Promise(resolve => setTimeout(resolve, 1000));
   
   try {
@@ -22,8 +22,32 @@ export async function getAIProfileAdvice(
     return result;
   } catch (error) {
     console.error("Error getting AI profile advice:", error);
-    // In a real app, you'd want to log this error to a monitoring service
     throw new Error("Failed to get advice from AI. Please try again later.");
+  }
+}
+
+async function sendPingNotification(pinger: User, pinged: User) {
+  if (!pinged.fcmTokens || pinged.fcmTokens.length === 0) {
+    console.log(`User ${pinged.name} has no FCM tokens, skipping notification.`);
+    return;
+  }
+
+  const message = {
+    notification: {
+      title: 'You received a new ping!',
+      body: `${pinger.name} just pinged you.`,
+    },
+    tokens: pinged.fcmTokens,
+  };
+
+  try {
+    const response = await adminMessaging.sendEachForMulticast(message);
+    console.log('Successfully sent notification:', response);
+    if (response.failureCount > 0) {
+      console.log('Failed notifications:', response.responses);
+    }
+  } catch (error) {
+    console.error('Error sending notification:', error);
   }
 }
 
@@ -43,6 +67,16 @@ export async function pingUser({ pingerId, pingedId }: { pingerId: string, pinge
       pingedId,
       timestamp: serverTimestamp(),
     });
+
+    const pingerDoc = await getDoc(doc(db, "users", pingerId));
+    const pingedDoc = await getDoc(doc(db, "users", pingedId));
+
+    if (pingerDoc.exists() && pingedDoc.exists()) {
+        const pinger = { id: pingerDoc.id, ...pingerDoc.data() } as User;
+        const pinged = { id: pingedDoc.id, ...pingedDoc.data() } as User;
+        await sendPingNotification(pinger, pinged);
+    }
+
     return { success: true, message: "Ping sent!" };
   } catch (error) {
     console.error("Error sending ping:", error);
@@ -86,8 +120,6 @@ export async function getFriends(userId: string): Promise<User[]> {
     return [];
   }
 
-  // Firestore 'in' query is limited to 30 items per query.
-  // For this app, we'll chunk the requests if there are more than 30 friends.
   const friendChunks: string[][] = [];
   for (let i = 0; i < friendIds.length; i += 30) {
     friendChunks.push(friendIds.slice(i, i + 30));
