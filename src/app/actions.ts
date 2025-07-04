@@ -3,7 +3,8 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc } from "firebase/firestore";
+import type { User } from "@/lib/types";
 
 export async function getAIProfileAdvice(
   data: ProfileAdvisorInput
@@ -56,4 +57,31 @@ export async function getSentPings(userId: string) {
   const q = query(collection(db, "pings"), where("pingerId", "==", userId));
   const querySnapshot = await getDocs(q);
   return querySnapshot.docs.map(doc => doc.data().pingedId as string);
+}
+
+export async function getReceivedPings(userId: string): Promise<User[]> {
+  if (!userId) {
+    return [];
+  }
+
+  const pingsQuery = query(collection(db, "pings"), where("pingedId", "==", userId));
+  const pingsSnapshot = await getDocs(pingsQuery);
+
+  if (pingsSnapshot.empty) {
+    return [];
+  }
+
+  const pingerIds = pingsSnapshot.docs.map(doc => doc.data().pingerId as string);
+
+  const pingerProfiles = await Promise.all(
+    pingerIds.map(async (id) => {
+      const userDoc = await getDoc(doc(db, "users", id));
+      if (userDoc.exists()) {
+        return { id: userDoc.id, ...userDoc.data() } as User;
+      }
+      return null;
+    })
+  );
+  
+  return pingerProfiles.filter(profile => profile !== null) as User[];
 }

@@ -15,7 +15,7 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Home, LogOut, UserCircle } from "lucide-react";
+import { Home, LogOut, UserCircle, Bell } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
@@ -43,6 +43,7 @@ function Logo() {
 function BottomNavBar({ pathname, onSignOut }: { pathname: string, onSignOut: () => void }) {
   const navItems = [
     { href: "/discover", label: "Discover", icon: Home },
+    { href: "/pings", label: "Pings", icon: Bell },
     { href: "/profile", label: "Profile", icon: UserCircle },
   ];
 
@@ -127,6 +128,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <a href="/discover">
                     <Home />
                     <span>Discover</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  href="/pings"
+                  asChild
+                  isActive={pathname === "/pings"}
+                  tooltip={{ children: "Pings", side: "right" }}
+                >
+                  <a href="/pings">
+                    <Bell />
+                    <span>Pings</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
