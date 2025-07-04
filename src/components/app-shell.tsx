@@ -15,12 +15,11 @@ import {
   SidebarMenuButton,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Home, LogOut, UserCircle, Users } from "lucide-react";
+import { Home, UserCircle, Users } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
-import { signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "./ui/button";
 import { collection, query, where, onSnapshot, Timestamp, getDoc, doc } from "firebase/firestore";
@@ -34,14 +33,14 @@ function Logo() {
         className="h-8 w-8 fill-primary"
         aria-hidden="true"
       >
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5-2.5z" />
       </svg>
       <h1 className="text-xl font-headline font-semibold text-primary">BluSocial</h1>
     </div>
   );
 }
 
-function BottomNavBar({ pathname, onSignOut }: { pathname: string, onSignOut: () => void }) {
+function BottomNavBar({ pathname }: { pathname: string }) {
   const navItems = [
     { href: "/discover", label: "Discover", icon: Home },
     { href: "/friends", label: "Friends", icon: Users },
@@ -60,10 +59,6 @@ function BottomNavBar({ pathname, onSignOut }: { pathname: string, onSignOut: ()
               <span>{label}</span>
           </Link>
         ))}
-         <button onClick={onSignOut} className="flex flex-col items-center justify-center w-full gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-            <LogOut className="h-5 w-5" />
-            <span>Sign Out</span>
-        </button>
       </div>
     </nav>
   );
@@ -81,16 +76,6 @@ export function AppShell({ children }: { children: ReactNode }) {
     setIsClient(true);
   }, []);
   
-  const handleSignOut = async () => {
-    try {
-      await signOut(auth);
-      toast({ title: "Signed Out", description: "You have been successfully signed out." });
-      router.push('/');
-    } catch (error) {
-      toast({ variant: "destructive", title: "Sign Out Error", description: "Could not sign you out. Please try again." });
-    }
-  };
-
   useEffect(() => {
     if (!user?.id) return;
 
@@ -211,12 +196,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter>
-            {user && (
-              <Button variant="ghost" onClick={handleSignOut} className="w-full justify-start gap-2">
-                <LogOut />
-                Sign Out
-              </Button>
-            )}
+            {/* Sign Out button moved to profile page */}
           </SidebarFooter>
         </Sidebar>
       )}
@@ -229,7 +209,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           )}
           <main>{children}</main>
         </div>
-        {isClient && isMobile && user && <BottomNavBar pathname={pathname} onSignOut={handleSignOut} />}
+        {isClient && isMobile && user && <BottomNavBar pathname={pathname} />}
       </SidebarInset>
     </SidebarProvider>
   );

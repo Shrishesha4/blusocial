@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Instagram, Loader2, Sparkles, Twitter, Linkedin, Facebook } from "lucide-react";
+import { Bot, Instagram, Loader2, Sparkles, Twitter, Linkedin, Facebook, LogOut } from "lucide-react";
 import { getAIProfileAdvice } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -27,6 +27,9 @@ import type { ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { Badge } from "@/components/ui/badge";
 import { useUser } from "@/context/user-context";
 import { Skeleton } from "@/components/ui/skeleton";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { Separator } from "@/components/ui/separator";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -192,6 +195,16 @@ export default function ProfilePage() {
     });
   }
 
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      toast({ title: "Signed Out", description: "You have been successfully signed out." });
+      router.push('/');
+    } catch (error) {
+      toast({ variant: "destructive", title: "Sign Out Error", description: "Could not sign you out. Please try again." });
+    }
+  };
+
   if (isUserLoading) {
       return <ProfileSkeleton />;
   }
@@ -347,6 +360,13 @@ export default function ProfilePage() {
         </form>
       </Form>
       
+      <Separator className="my-8" />
+
+      <Button variant="outline" onClick={handleSignOut}>
+        <LogOut className="mr-2 h-4 w-4" />
+        Sign Out
+      </Button>
+
       <Dialog open={isAdvisorOpen} onOpenChange={setAdvisorOpen}>
         <DialogContent>
           <DialogHeader>
