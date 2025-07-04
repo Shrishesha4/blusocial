@@ -34,7 +34,7 @@ function Logo() {
         className="h-8 w-8 fill-primary"
         aria-hidden="true"
       >
-        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5-2.5z" />
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
       </svg>
       <h1 className="text-xl font-headline font-semibold text-primary">BluSocial</h1>
     </div>
@@ -94,20 +94,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user?.id) return;
 
-    // Use a timestamp from when the component mounts to avoid showing old pings
+    // This timestamp is created when the listener is established.
+    // It will be used to ignore notifications for pings that existed before this session.
     const listenTimestamp = Timestamp.now();
 
     const q = query(
         collection(db, "pings"),
-        where("pingedId", "==", user.id),
-        where("timestamp", ">", listenTimestamp)
+        where("pingedId", "==", user.id)
+        // By removing the compound query on 'timestamp', we avoid the need for a Firestore index.
+        // We will filter by timestamp on the client side.
     );
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
+        // snapshot.docChanges() gives us an array of documents that have changed.
+        // On initial load, this includes all documents matching the query, with type 'added'.
+        // On subsequent updates, it includes only the specific documents that changed.
         for (const change of snapshot.docChanges()) {
             if (change.type === "added") {
                 const pingData = change.doc.data();
                 const pingerId = pingData.pingerId;
+                const pingTimestamp = pingData.timestamp as Timestamp;
+
+                // If the ping doesn't have a timestamp, or its timestamp is before we started listening, ignore it.
+                // This prevents a "notification storm" for old pings when the user first logs in.
+                if (!pingTimestamp || pingTimestamp.toMillis() < listenTimestamp.toMillis()) {
+                    continue;
+                }
                 
                 if (pingerId === user.id) continue; // Don't notify for self-pings
 
