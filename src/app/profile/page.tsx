@@ -207,7 +207,7 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="flex items-center gap-6">
-                <Avatar className="h-20 w-20 border-4 border-primary/50 text-4xl flex items-center justify-center">
+                <Avatar className="h-20 w-20 border-4 border-primary/50 text-5xl flex items-center justify-center">
                   <AvatarFallback className="bg-transparent">{form.watch('profileEmoji')}</AvatarFallback>
                 </Avatar>
                 <Button type="button" variant="outline" onClick={() => setEmojiPickerOpen(true)}>

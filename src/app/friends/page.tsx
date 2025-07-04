@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Users } from "lucide-react";
+import { Users, Twitter, Instagram, Linkedin, Facebook } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 function FriendsSkeleton() {
@@ -69,7 +69,7 @@ export default function FriendsPage() {
           {friends.map((friend) => (
             <Card key={friend.id}>
               <CardHeader className="flex flex-row items-center gap-4">
-                <Avatar className="h-12 w-12 border-2 border-primary text-2xl flex items-center justify-center">
+                <Avatar className="h-12 w-12 border-2 border-primary text-3xl flex items-center justify-center">
                   <AvatarFallback className="bg-transparent">{friend.profileEmoji ?? friend.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
@@ -77,6 +77,14 @@ export default function FriendsPage() {
                   <CardDescription className="line-clamp-2">{friend.bio}</CardDescription>
                 </div>
               </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4 pt-2">
+                  {friend.socials?.twitter && <Twitter className="h-5 w-5 text-sky-500" />}
+                  {friend.socials?.instagram && <Instagram className="h-5 w-5 text-rose-500" />}
+                  {friend.socials?.linkedin && <Linkedin className="h-5 w-5 text-blue-600" />}
+                  {friend.socials?.facebook && <Facebook className="h-5 w-5 text-blue-800" />}
+                </div>
+              </CardContent>
             </Card>
           ))}
         </div>

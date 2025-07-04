@@ -193,7 +193,7 @@ export default function DiscoverPage() {
               return (
               <Card key={match.id} className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:border-accent">
                 <CardHeader className="flex flex-row items-center gap-4">
-                  <Avatar className="h-12 w-12 border-2 border-primary text-2xl flex items-center justify-center">
+                  <Avatar className="h-12 w-12 border-2 border-primary text-3xl flex items-center justify-center">
                     <AvatarFallback className="bg-transparent">{match.profileEmoji ?? match.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
@@ -252,7 +252,7 @@ export default function DiscoverPage() {
         <DialogContent>
           <DialogHeader>
              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16 border-2 border-primary text-3xl flex items-center justify-center">
+                <Avatar className="h-16 w-16 border-2 border-primary text-4xl flex items-center justify-center">
                     <AvatarFallback className="bg-transparent">{selectedUser?.profileEmoji ?? selectedUser?.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div>

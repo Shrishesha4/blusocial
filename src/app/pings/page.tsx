@@ -69,7 +69,7 @@ export default function PingsPage() {
           {pings.map((pinger) => (
             <Card key={pinger.id}>
               <CardHeader className="flex flex-row items-center gap-4">
-                <Avatar className="h-12 w-12 border-2 border-primary text-2xl flex items-center justify-center">
+                <Avatar className="h-12 w-12 border-2 border-primary text-3xl flex items-center justify-center">
                   <AvatarFallback className="bg-transparent">{pinger.profileEmoji ?? pinger.name.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
