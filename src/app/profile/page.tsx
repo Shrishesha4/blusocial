@@ -44,6 +44,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const LOOKING_FOR_OPTIONS = ['Friendship', 'Networking', 'Collaboration', 'Dating'];
+const EMOJI_LIST = ['😀', '😎', '🚀', '🎉', '💡', '❤️', '🌍', '🐶', '🐱', '🍕', '⚽️', '🎨', '🎵', '💻', '✈️', '🤔', '😂', '🥳', '🤯', '👍'];
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -59,11 +63,16 @@ const profileFormSchema = z.object({
   }).optional(),
   profileEmoji: z.string().optional(),
   discoveryRadius: z.number().min(0.1).max(40).optional(),
+  age: z.preprocess(
+    (val) => (val === "" ? undefined : val),
+    z.coerce.number({ invalid_type_error: "Please enter a valid age." }).min(18, { message: "You must be 18 or older." }).max(99).optional()
+  ),
+  pronouns: z.string().max(25, { message: "Pronouns cannot exceed 25 characters." }).optional(),
+  lookingFor: z.array(z.string()).optional(),
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-const EMOJI_LIST = ['😀', '😎', '🚀', '🎉', '💡', '❤️', '🌍', '🐶', '🐱', '🍕', '⚽️', '🎨', '🎵', '💻', '✈️', '🤔', '😂', '🥳', '🤯', '👍'];
 
 function ProfileSkeleton() {
     return (
@@ -119,6 +128,9 @@ export default function ProfilePage() {
         socials: { twitter: "", instagram: "", linkedin: "", facebook: "" },
         profileEmoji: "👋",
         discoveryRadius: 0.5,
+        age: undefined,
+        pronouns: "",
+        lookingFor: [],
     },
     mode: "onChange",
   });
@@ -140,6 +152,9 @@ export default function ProfilePage() {
         },
         profileEmoji: user.profileEmoji ?? "👋",
         discoveryRadius: user.discoveryRadius ?? 0.5,
+        age: user.age ?? undefined,
+        pronouns: user.pronouns ?? "",
+        lookingFor: user.lookingFor ?? [],
       });
     }
   }, [user, isUserLoading, router, form]);
@@ -149,8 +164,16 @@ export default function ProfilePage() {
   async function onSubmit(data: ProfileFormValues) {
     setIsSaving(true);
     const interestsArray = data.interests?.split(',').map(i => i.trim()).filter(Boolean) ?? [];
+    
+    // Create payload, ensuring age is either a number or null for deletion
+    const payload: Partial<ProfileFormValues> & { interests: string[] } = {
+        ...data,
+        interests: interestsArray,
+        age: data.age || null, // Send null to Firestore to remove the field
+    };
+
     try {
-      await updateUser({ ...data, interests: interestsArray });
+      await updateUser(payload);
       toast({
         title: "Profile Updated!",
         description: "Your profile information has been saved.",
@@ -284,7 +307,7 @@ export default function ProfilePage() {
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">Your Profile</CardTitle>
-              <CardDescription>This is how others will see you on BluSocial.</CardDescription>
+              <CardDescription>This is how others will see you on BluSocial. Fill out your profile to get better matches.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
               <div className="flex items-center gap-6">
@@ -343,120 +366,201 @@ export default function ProfilePage() {
                   </FormItem>
                 )}
               />
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <FormField
-                  control={form.control}
-                  name="socials.twitter"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Twitter</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input placeholder="yourhandle" className="pl-8" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="socials.instagram"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Instagram</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input placeholder="yourhandle" className="pl-8" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="socials.linkedin"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>LinkedIn</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input placeholder="yourhandle" className="pl-8" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="socials.facebook"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Facebook</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Facebook className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                          <Input placeholder="yourhandle" className="pl-8" {...field} />
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
 
-              <Accordion type="single" collapsible className="w-full">
-                <AccordionItem value="advanced-settings">
-                  <AccordionTrigger className="text-base">Advanced Settings</AccordionTrigger>
-                  <AccordionContent className="pt-4">
-                    <FormField
-                      control={form.control}
-                      name="discoveryRadius"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Discovery Radius</FormLabel>
-                          <FormControl>
-                            <div className="flex items-center gap-4">
-                              <Slider
-                                value={[field.value ?? 0.5]}
-                                onValueChange={(value) => field.onChange(value[0])}
-                                min={0.1}
-                                max={40}
-                                step={0.1}
-                              />
-                              <span className="text-sm text-muted-foreground w-24 text-right">
-                                {(field.value ?? 0.5).toFixed(1)} km
-                              </span>
-                            </div>
-                          </FormControl>
-                          <FormDescription>
-                            Set the maximum distance to discover other users.
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
-              
-              <div className="flex items-end gap-4">
+               <div className="flex items-end gap-4">
                   <Button type="button" variant="outline" onClick={handleGetAdvice} disabled={isAdvicePending}>
                       {isAdvicePending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4 text-yellow-400" />}
                       Get AI Advice
                   </Button>
               </div>
-              
+            </CardContent>
+          </Card>
+          
+          <Card>
+             <CardHeader>
+                <CardTitle className="font-headline">Detailed Information</CardTitle>
+                <CardDescription>Providing more details helps us find better matches for you.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                        control={form.control}
+                        name="age"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Age</FormLabel>
+                                <FormControl>
+                                    <Input type="number" placeholder="e.g. 25" {...field} onChange={event => field.onChange(event.target.valueAsNumber || '')} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="pronouns"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Pronouns</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="e.g. she/her, they/them" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+                
+                 <FormField
+                    control={form.control}
+                    name="lookingFor"
+                    render={() => (
+                        <FormItem>
+                             <FormLabel>Looking For</FormLabel>
+                             <FormDescription>Select what you're interested in.</FormDescription>
+                            <div className="grid grid-cols-2 gap-4 pt-2">
+                                {LOOKING_FOR_OPTIONS.map((item) => (
+                                <FormField
+                                    key={item}
+                                    control={form.control}
+                                    name="lookingFor"
+                                    render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                        <FormControl>
+                                        <Checkbox
+                                            checked={field.value?.includes(item)}
+                                            onCheckedChange={(checked) => {
+                                            const currentValue = field.value ?? [];
+                                            return checked
+                                                ? field.onChange([...currentValue, item])
+                                                : field.onChange(currentValue.filter((value) => value !== item));
+                                            }}
+                                        />
+                                        </FormControl>
+                                        <FormLabel className="font-normal text-sm">{item}</FormLabel>
+                                    </FormItem>
+                                    )}
+                                />
+                                ))}
+                            </div>
+                             <FormMessage />
+                        </FormItem>
+                    )}
+                />
             </CardContent>
           </Card>
 
-          <Button type="submit" disabled={isSaving}>
+          <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">Socials</CardTitle>
+                <CardDescription>Add links to your social media profiles.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField
+                    control={form.control}
+                    name="socials.twitter"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Twitter</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <Twitter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="yourhandle" className="pl-8" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="socials.instagram"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Instagram</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <Instagram className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="yourhandle" className="pl-8" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="socials.linkedin"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>LinkedIn</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <Linkedin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="yourhandle" className="pl-8" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                    <FormField
+                    control={form.control}
+                    name="socials.facebook"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Facebook</FormLabel>
+                        <FormControl>
+                            <div className="relative">
+                            <Facebook className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input placeholder="yourhandle" className="pl-8" {...field} />
+                            </div>
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                </div>
+            </CardContent>
+          </Card>
+          
+          <Accordion type="single" collapsible className="w-full rounded-lg border px-4">
+            <AccordionItem value="advanced-settings" className="border-b-0">
+                <AccordionTrigger className="text-base hover:no-underline">Advanced Settings</AccordionTrigger>
+                <AccordionContent className="pt-4">
+                <FormField
+                    control={form.control}
+                    name="discoveryRadius"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Discovery Radius</FormLabel>
+                        <FormControl>
+                        <div className="flex items-center gap-4">
+                            <Slider
+                            value={[field.value ?? 0.5]}
+                            onValueChange={(value) => field.onChange(value[0])}
+                            min={0.1}
+                            max={40}
+                            step={0.1}
+                            />
+                            <span className="text-sm text-muted-foreground w-24 text-right">
+                            {(field.value ?? 0.5).toFixed(1)} km
+                            </span>
+                        </div>
+                        </FormControl>
+                        <FormDescription>
+                        Set the maximum distance to discover other users.
+                        </FormDescription>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                </AccordionContent>
+            </AccordionItem>
+          </Accordion>
+          
+          <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save Changes
           </Button>

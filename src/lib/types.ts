@@ -22,6 +22,9 @@ export interface User {
   fcmTokens?: string[]; // For push notifications
   discoveryRadius?: number;
   suggestedMatches?: string[]; // To keep track of users already suggested
+  age?: number;
+  pronouns?: string;
+  lookingFor?: string[];
 }
 
 export interface Message {

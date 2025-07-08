@@ -108,6 +108,8 @@ export default function AuthPage() {
         profileEmoji: "👋",
         location: { lat: 34.0522, lng: -118.2437 }, // Default location, user can update later
         discoveryRadius: 0.5, // Default radius in KM
+        lookingFor: [],
+        pronouns: "",
       };
       await setDoc(doc(db, "users", firebaseUser.uid), newUser);
 

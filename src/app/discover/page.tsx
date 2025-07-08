@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook, Users, UserPlus } from "lucide-react";
+import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook, Users, UserPlus, Search } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
@@ -19,8 +19,43 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { pingUser, sendFriendRequest } from "../actions";
+import { cn } from "@/lib/utils";
 
 type RequestStatus = 'add' | 'sent' | 'friends';
+
+const calculateMatchScore = (currentUser: User, otherUser: User): number => {
+  let score = 0;
+
+  // 1. Shared Interests (+10 points each)
+  if (currentUser.interests && otherUser.interests && currentUser.interests.length > 0) {
+    const currentUserInterests = new Set(currentUser.interests);
+    const sharedInterests = otherUser.interests.filter(interest => currentUserInterests.has(interest));
+    score += sharedInterests.length * 10;
+  }
+
+  // 2. Shared "Looking For" (+5 points each)
+  if (currentUser.lookingFor && otherUser.lookingFor && currentUser.lookingFor.length > 0) {
+    const currentUserLookingFor = new Set(currentUser.lookingFor);
+    const sharedLookingFor = otherUser.lookingFor.filter(item => currentUserLookingFor.has(item));
+    score += sharedLookingFor.length * 5;
+  }
+  
+  // 3. Distance penalty (-2 points per km)
+  if (otherUser.distance) {
+    score -= otherUser.distance * 2;
+  }
+
+  // 4. Age difference penalty (-1 point per year difference)
+  if (currentUser.age && otherUser.age) {
+    const ageDiff = Math.abs(currentUser.age - otherUser.age);
+    score -= ageDiff;
+  }
+  
+  // Add a small base score to prevent negative scores for very close users with no shared interests
+  score += 1;
+
+  return score;
+};
 
 
 export default function DiscoverPage() {
@@ -84,9 +119,6 @@ export default function DiscoverPage() {
     }
   }, [user, selectedUser]);
 
-
-  const currentUserInterests = useMemo(() => new Set(user?.interests ?? []), [user]);
-
   const matchedUsers = useMemo(() => {
     if (!location || !user || !allUsers.length) return [];
 
@@ -99,15 +131,16 @@ export default function DiscoverPage() {
         distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
       }))
       .filter(otherUser => otherUser.distance! <= searchRadius);
+      
+    const scoredUsers = nearbyUsers.map(otherUser => ({
+        ...otherUser,
+        score: calculateMatchScore(user, otherUser),
+    }));
 
-    const filteredUsers = currentUserInterests.size === 0
-        ? nearbyUsers
-        : nearbyUsers.filter(otherUser =>
-            otherUser.interests?.some(interest => currentUserInterests.has(interest))
-        );
+    // Only show users with a positive score to ensure some level of compatibility
+    return scoredUsers.filter(u => u.score > 0).sort((a, b) => b.score - a.score);
 
-    return filteredUsers.sort((a, b) => a.distance! - b.distance!);
-  }, [location, user, currentUserInterests, allUsers]);
+  }, [location, user, allUsers]);
   
   const handlePing = useCallback(async (pingedId: string) => {
     if (!user?.id) {
@@ -203,6 +236,9 @@ export default function DiscoverPage() {
         {matchedUsers.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {matchedUsers.map(match => {
+              const sharedInterests = user?.interests?.filter(i => match.interests?.includes(i)) ?? [];
+              const sharedLookingFor = user?.lookingFor?.filter(l => match.lookingFor?.includes(l)) ?? [];
+              
               return (
               <Card key={match.id} className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:border-accent">
                 <CardHeader className="flex flex-row items-center gap-4">
@@ -211,27 +247,44 @@ export default function DiscoverPage() {
                   </Avatar>
                   <div className="flex-1">
                     <CardTitle className="font-headline">{match.name}</CardTitle>
-                    <CardDescription className="flex items-center gap-1 text-sm">
-                      <MapPin className="h-3 w-3" /> 
-                      {match.distance! < 1 
-                        ? `${(match.distance! * 1000).toFixed(0)} m away`
-                        : `${match.distance!.toFixed(1)} km away`
-                      }
+                    <CardDescription className="flex items-center gap-3 text-sm flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <MapPin className="h-3 w-3" /> 
+                        {match.distance! < 1 
+                          ? `${(match.distance! * 1000).toFixed(0)} m away`
+                          : `${match.distance!.toFixed(1)} km away`
+                        }
+                      </span>
+                      {match.age && <span className="text-xs font-semibold">{match.age} yrs</span>}
+                      {match.pronouns && <span className="text-xs italic">({match.pronouns})</span>}
                     </CardDescription>
                   </div>
                 </CardHeader>
-                <CardContent className="flex-grow">
+                <CardContent className="flex-grow space-y-3">
                   <p className="text-sm text-muted-foreground line-clamp-2">{match.bio}</p>
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {match.interests
-                      ?.filter(interest => currentUserInterests.has(interest))
-                      .map(interest => (
-                        <Badge key={interest} variant="secondary" className="gap-1.5 items-center">
-                          <Heart className="h-3 w-3 text-primary" />
-                          {interest}
-                        </Badge>
-                      ))}
-                  </div>
+                  
+                  {sharedInterests.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {sharedInterests.map(interest => (
+                            <Badge key={interest} variant="secondary" className="gap-1.5 items-center">
+                            <Heart className="h-3 w-3 text-primary" />
+                            {interest}
+                            </Badge>
+                        ))}
+                    </div>
+                  )}
+
+                  {sharedLookingFor.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                        {sharedLookingFor.map(item => (
+                            <Badge key={item} variant="outline" className="gap-1.5 items-center text-accent-foreground border-accent">
+                            <Search className="h-3 w-3 text-accent-foreground" />
+                            {item}
+                            </Badge>
+                        ))}
+                    </div>
+                  )}
+
                 </CardContent>
                 <CardFooter className="flex flex-wrap gap-2 justify-between items-center">
                     <Button variant="outline" size="sm" onClick={() => setSelectedUser(match)}>
@@ -254,7 +307,7 @@ export default function DiscoverPage() {
                   <Frown className="h-5 w-5 mx-auto mb-2" />
                   <AlertTitle>No Matches Found</AlertTitle>
                   <AlertDescription>
-                  We couldn&apos;t find anyone nearby. Try increasing your discovery radius or check back later!
+                  We couldn&apos;t find anyone nearby with similar interests. Try expanding your profile details or increasing your discovery radius.
                   </AlertDescription>
               </Alert>
           </div>
