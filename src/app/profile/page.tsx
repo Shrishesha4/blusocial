@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bot, Instagram, Loader2, Sparkles, Twitter, Linkedin, Facebook, LogOut } from "lucide-react";
-import { getAIProfileAdvice } from "@/app/actions";
+import { getAIProfileAdvice, deleteAccount } from "@/app/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import type { ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
@@ -33,6 +33,16 @@ import { auth } from "@/lib/firebase";
 import { Separator } from "@/components/ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Slider } from "@/components/ui/slider";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -95,6 +105,8 @@ export default function ProfilePage() {
   const [advice, setAdvice] = useState<ProfileAdvisorOutput | null>(null);
   const [isAdvisorOpen, setAdvisorOpen] = useState(false);
   const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -210,6 +222,23 @@ export default function ProfilePage() {
       toast({ variant: "destructive", title: "Sign Out Error", description: "Could not sign you out. Please try again." });
     }
   };
+  
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    setIsDeleting(true);
+    try {
+        await deleteAccount(user.id);
+        await signOut(auth);
+        router.push('/');
+        toast({ title: "Account Deleted", description: "Your account and all associated data have been removed." });
+    } catch (error) {
+        toast({ variant: "destructive", title: "Deletion Failed", description: (error as Error).message });
+    } finally {
+        setIsDeleting(false);
+        setDeleteAlertOpen(false);
+    }
+  };
+
 
   if (isUserLoading) {
       return <ProfileSkeleton />;
@@ -403,6 +432,22 @@ export default function ProfilePage() {
       
       <Separator className="my-8" />
 
+      <div className="p-4 rounded-lg border border-destructive/50 space-y-4">
+          <h3 className="font-headline text-lg font-semibold text-destructive">Danger Zone</h3>
+          <div className="flex items-center justify-between">
+              <div>
+                  <p className="font-medium">Delete your account</p>
+                  <p className="text-sm text-muted-foreground">Once you delete your account, there is no going back. Please be certain.</p>
+              </div>
+              <Button variant="destructive" onClick={() => setDeleteAlertOpen(true)} disabled={isDeleting}>
+                  {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Delete Account
+              </Button>
+          </div>
+      </div>
+
+      <Separator className="my-8" />
+
       <Button variant="outline" onClick={handleSignOut}>
         <LogOut className="mr-2 h-4 w-4" />
         Sign Out
@@ -459,6 +504,25 @@ export default function ProfilePage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isDeleteAlertOpen} onOpenChange={setDeleteAlertOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete your account
+                    and remove your data from our servers.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteAccount} disabled={isDeleting} className={buttonVariants({ variant: "destructive" })}>
+                    {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                    Delete my account
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

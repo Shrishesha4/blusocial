@@ -1,11 +1,12 @@
+
 "use server";
 
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit } from "firebase/firestore";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit, deleteDoc } from "firebase/firestore";
 import type { User } from "@/lib/types";
-import { adminMessaging } from "@/lib/firebase-admin";
+import { adminMessaging, adminAuth } from "@/lib/firebase-admin";
 import { getDistance } from "@/lib/location";
 
 export async function getAIProfileAdvice(
@@ -317,7 +318,6 @@ export async function sendMessage({ chatId, senderId, text }: { chatId: string, 
   }
 }
 
-// This is a new function that you can trigger (e.g., via a cron job) to suggest matches.
 export async function findAndSuggestMatch(userId: string) {
   if (!adminMessaging) {
     console.warn("Notifications are disabled.");
@@ -331,7 +331,6 @@ export async function findAndSuggestMatch(userId: string) {
   const user = { id: userSnap.id, ...userSnap.data() } as User;
   if (!user.location || !user.interests || user.interests.length === 0) return;
 
-  // Find users within discovery radius
   const allUsersSnap = await getDocs(collection(db, "users"));
   const nearbyUsers = allUsersSnap.docs
     .map(doc => ({ id: doc.id, ...doc.data() } as User))
@@ -343,7 +342,6 @@ export async function findAndSuggestMatch(userId: string) {
 
   const currentUserInterests = new Set(user.interests);
   
-  // Find a potential match with shared interests who hasn't been suggested, isn't a friend, and hasn't sent a request.
   const potentialMatch = nearbyUsers.find(otherUser => {
     const hasSharedInterests = otherUser.interests?.some(interest => currentUserInterests.has(interest));
     if (!hasSharedInterests) return false;
@@ -362,9 +360,52 @@ export async function findAndSuggestMatch(userId: string) {
       body: `You and ${potentialMatch.name} have similar interests. Check them out!`,
       url: '/discover',
     });
-    // Mark as suggested to avoid re-notifying
     await updateDoc(userRef, {
       suggestedMatches: arrayUnion(potentialMatch.id),
     });
   }
+}
+
+export async function removeFriend({ userId, friendId }: { userId: string, friendId: string }) {
+    if (!userId || !friendId) throw new Error("Invalid user IDs.");
+    if (userId === friendId) throw new Error("Invalid action.");
+
+    try {
+        const userRef = doc(db, "users", userId);
+        const friendRef = doc(db, "users", friendId);
+
+        const batch = writeBatch(db);
+
+        batch.update(userRef, { friends: arrayRemove(friendId) });
+        batch.update(friendRef, { friends: arrayRemove(userId) });
+
+        await batch.commit();
+
+        return { success: true, message: "Friend removed." };
+    } catch (error) {
+        console.error("Error removing friend:", error);
+        throw new Error("Failed to remove friend.");
+    }
+}
+
+export async function deleteAccount(userId: string) {
+    if (!userId) {
+        throw new Error("User ID is required to delete an account.");
+    }
+
+    if (!adminAuth) {
+        console.error("Firebase Admin SDK not initialized. Cannot delete user from Auth.");
+        throw new Error("Account deletion service is currently unavailable.");
+    }
+
+    try {
+        const userDocRef = doc(db, "users", userId);
+        await deleteDoc(userDocRef);
+        await adminAuth.deleteUser(userId);
+
+        return { success: true, message: "Account deleted successfully." };
+    } catch (error) {
+        console.error("Error deleting account:", error);
+        throw new Error("Failed to delete account. Please contact support if this issue persists.");
+    }
 }
