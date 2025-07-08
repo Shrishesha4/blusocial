@@ -16,7 +16,7 @@ import {
   SidebarMenuBadge,
   SidebarFooter,
 } from "@/components/ui/sidebar";
-import { Home, UserCircle, Users } from "lucide-react";
+import { Home, UserCircle, Users, Map } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
@@ -41,6 +41,7 @@ function Logo() {
 function BottomNavBar({ pathname, requestCount }: { pathname: string, requestCount: number }) {
   const navItems = [
     { href: "/discover", label: "Discover", icon: Home, requests: 0 },
+    { href: "/map", label: "Map", icon: Map, requests: 0 },
     { href: "/friends", label: "Friends", icon: Users, requests: requestCount },
     { href: "/profile", label: "Profile", icon: UserCircle, requests: 0 },
   ];
@@ -121,6 +122,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                   <a href="/discover">
                     <Home />
                     <span>Discover</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  href="/map"
+                  asChild
+                  isActive={pathname === "/map"}
+                  tooltip={{ children: "Map", side: "right" }}
+                >
+                  <a href="/map">
+                    <Map />
+                    <span>Map</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
