@@ -13,22 +13,22 @@ import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
+const MapView = dynamic(() => import('@/components/map'), {
+    ssr: false,
+    loading: () => (
+         <div className="flex justify-center items-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <p className="ml-2">Loading Map...</p>
+        </div>
+    ),
+});
+
 const MapPage = () => {
     const router = useRouter();
     const { user, isLoading: isUserLoading } = useUser();
     const { location, loading: locationLoading, error: locationError } = useLocation();
     const [allUsers, setAllUsers] = useState<User[]>([]);
     const [isFetchingUsers, setIsFetchingUsers] = useState(true);
-
-    const MapView = useMemo(() => dynamic(() => import('@/components/map'), {
-        ssr: false,
-        loading: () => (
-             <div className="flex justify-center items-center h-full">
-                <Loader2 className="h-8 w-8 animate-spin" />
-                <p className="ml-2">Loading Map...</p>
-            </div>
-        ),
-    }), []);
 
     useEffect(() => {
         if (!isUserLoading && !user) {
