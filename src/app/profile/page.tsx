@@ -43,6 +43,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Label } from "@/components/ui/label";
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }).max(50),
@@ -105,6 +106,7 @@ export default function ProfilePage() {
   const [advice, setAdvice] = useState<ProfileAdvisorOutput | null>(null);
   const [isAdvisorOpen, setAdvisorOpen] = useState(false);
   const [isEmojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [customEmoji, setCustomEmoji] = useState("");
   const [isDeleteAlertOpen, setDeleteAlertOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -211,6 +213,37 @@ export default function ProfilePage() {
         title: "Emoji Selected!",
         description: "Your new emoji has been set. Don't forget to save changes!",
     });
+  }
+
+  function handleCustomEmojiSubmit() {
+    if (!customEmoji) {
+      toast({
+        variant: "destructive",
+        title: "Input Empty",
+        description: "Please enter an emoji.",
+      });
+      return;
+    }
+
+    try {
+      // Intl.Segmenter correctly handles complex emojis with multiple code points.
+      const segmenter = new Intl.Segmenter();
+      const segments = Array.from(segmenter.segment(customEmoji));
+      
+      // Check if it's a single visible character (grapheme) and if it's an emoji.
+      if (segments.length === 1 && /\p{Emoji}/u.test(segments[0].segment)) {
+        handleEmojiSelect(customEmoji);
+        setCustomEmoji('');
+      } else {
+        throw new Error("Not a single emoji");
+      }
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Input",
+        description: "Please enter a single, valid emoji.",
+      });
+    }
   }
 
   const handleSignOut = async () => {
@@ -484,11 +517,16 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
       
-      <Dialog open={isEmojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
+      <Dialog open={isEmojiPickerOpen} onOpenChange={(isOpen) => {
+        if (!isOpen) {
+            setCustomEmoji('');
+        }
+        setEmojiPickerOpen(isOpen);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Choose your Emoji</DialogTitle>
-            <DialogDescription>Select an emoji to represent you.</DialogDescription>
+            <DialogDescription>Select an emoji to represent you or enter a custom one.</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-5 gap-4 py-4 justify-items-center">
             {EMOJI_LIST.map(emoji => (
@@ -502,6 +540,21 @@ export default function ProfilePage() {
               </button>
             ))}
           </div>
+          <Separator />
+            <div className="space-y-2 pt-4">
+                <Label htmlFor="custom-emoji">Or enter a custom emoji</Label>
+                <div className="flex items-center gap-2">
+                    <Input
+                        id="custom-emoji"
+                        placeholder="✨"
+                        value={customEmoji}
+                        onChange={(e) => setCustomEmoji(e.target.value)}
+                        maxLength={4} // Complex emojis can have multiple characters
+                        className="text-center text-lg"
+                    />
+                    <Button onClick={handleCustomEmojiSubmit} type="button">Set</Button>
+                </div>
+            </div>
         </DialogContent>
       </Dialog>
 
