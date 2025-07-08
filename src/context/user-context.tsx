@@ -1,3 +1,4 @@
+
 "use client";
 
 import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
@@ -21,21 +22,39 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Set persistence on the client-side, BEFORE setting up the auth state listener.
-    const unsubscribePromise = setPersistence(auth, browserLocalPersistence).then(() => {
-      return onAuthStateChanged(auth, (fbUser) => {
-        setFirebaseUser(fbUser);
-        if (!fbUser) {
-          // If user logs out, clear user data and stop loading
-          setUser(null);
-          setIsLoading(false);
-        }
-        // The listener for user data will be set up in the next useEffect
+    // This effect should only run once on mount on the client.
+    let unsubscribe: () => void;
+
+    // Set persistence to local (persists across sessions)
+    setPersistence(auth, browserLocalPersistence)
+      .then(() => {
+        // Now that persistence is set, attach the auth state listener.
+        unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+          setFirebaseUser(fbUser);
+          if (!fbUser) {
+            // User is signed out
+            setUser(null);
+            setIsLoading(false);
+          }
+          // The other useEffect will handle fetching user data if fbUser is not null.
+        });
+      })
+      .catch((error) => {
+        console.error("Error setting Firebase persistence:", error);
+        // Fallback to setting listener anyway
+        unsubscribe = onAuthStateChanged(auth, (fbUser) => {
+          setFirebaseUser(fbUser);
+           if (!fbUser) {
+            setUser(null);
+            setIsLoading(false);
+          }
+        });
       });
-    });
 
     return () => {
-      unsubscribePromise.then(unsubscribe => unsubscribe());
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, []);
 

@@ -1,23 +1,21 @@
+
 {
-  "name": "BluSocial",
   "short_name": "BluSocial",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#212936",
-  "theme_color": "#212936",
-  "description": "Find people with similar interests near you.",
+  "name": "BluSocial",
   "icons": [
     {
       "src": "https://raw.githubusercontent.com/Shrishesha4/blusocial/refs/heads/main/src/app/logo192.png",
-      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "sizes": "192x192"
     },
     {
       "src": "https://raw.githubusercontent.com/Shrishesha4/blusocial/refs/heads/main/src/app/logo512.png",
-      "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "sizes": "512x512"
     }
-  ]
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#212936",
+  "background_color": "#1a1c1e"
 }
