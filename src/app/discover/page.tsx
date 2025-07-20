@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -63,12 +64,12 @@ export default function DiscoverPage() {
   const { toast } = useToast();
   const { user, isLoading: isUserLoading, updateUser } = useUser();
   const { location, loading: locationLoading, error: locationError } = useLocation();
-  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isFetchingUsers, setIsFetchingUsers] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isPinging, setIsPinging] = useState<string | null>(null);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('add');
+  const [matchedUsers, setMatchedUsers] = useState<User[]>([]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -86,26 +87,45 @@ export default function DiscoverPage() {
   }, [location, user?.id, updateUser]);
   
   useEffect(() => {
-    if (!user) return; 
+    if (!user || !location) return;
 
-    const fetchUsers = async () => {
-      setIsFetchingUsers(true);
-      try {
-        const usersCol = collection(db, "users");
-        const userSnapshot = await getDocs(usersCol);
-        const usersList = userSnapshot.docs
-            .map(doc => ({ id: doc.id, ...doc.data() } as User))
-            .filter(u => u.id !== user.id); 
-        setAllUsers(usersList);
-      } catch (error) {
-        console.error("Error fetching users:", error);
-      } finally {
-        setIsFetchingUsers(false);
-      }
+    const fetchAndProcessUsers = async () => {
+        setIsFetchingUsers(true);
+        try {
+            const usersCol = collection(db, "users");
+            const userSnapshot = await getDocs(usersCol);
+            const allUsers = userSnapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() } as User))
+                .filter(u => u.id !== user.id);
+            
+            const searchRadius = user.discoveryRadius ?? 0.5;
+
+            const nearbyUsers = allUsers
+              .filter(otherUser => otherUser.location)
+              .map(otherUser => ({
+                ...otherUser,
+                distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
+              }))
+              .filter(otherUser => otherUser.distance! <= searchRadius);
+              
+            const scoredUsers = nearbyUsers.map(otherUser => ({
+                ...otherUser,
+                score: calculateMatchScore(user, otherUser),
+            }));
+
+            const finalMatches = scoredUsers.filter(u => u.score > 0).sort((a, b) => b.score - a.score);
+            setMatchedUsers(finalMatches);
+
+        } catch (error) {
+            console.error("Error fetching users:", error);
+            toast({ variant: "destructive", title: "Error", description: "Could not fetch users." });
+        } finally {
+            setIsFetchingUsers(false);
+        }
     };
 
-    fetchUsers();
-  }, [user]);
+    fetchAndProcessUsers();
+  }, [user, location, toast]);
 
   useEffect(() => {
     if (user && selectedUser) {
@@ -118,29 +138,6 @@ export default function DiscoverPage() {
         }
     }
   }, [user, selectedUser]);
-
-  const matchedUsers = useMemo(() => {
-    if (!location || !user || !allUsers.length) return [];
-
-    const searchRadius = user.discoveryRadius ?? 0.5;
-
-    const nearbyUsers = allUsers
-      .filter(otherUser => otherUser.location)
-      .map(otherUser => ({
-        ...otherUser,
-        distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
-      }))
-      .filter(otherUser => otherUser.distance! <= searchRadius);
-      
-    const scoredUsers = nearbyUsers.map(otherUser => ({
-        ...otherUser,
-        score: calculateMatchScore(user, otherUser),
-    }));
-
-    // Only show users with a positive score to ensure some level of compatibility
-    return scoredUsers.filter(u => u.score > 0).sort((a, b) => b.score - a.score);
-
-  }, [location, user, allUsers]);
   
   const handlePing = useCallback(async (pingedId: string) => {
     if (!user?.id) {
