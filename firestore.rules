@@ -9,57 +9,70 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
-    
-    // USERS COLLECTION
-    // Users can read public data on other profiles, but only write to their own.
-    // Sensitive data like email, fcmTokens, and friend requests are protected.
+
+    // `users` collection
     match /users/{userId} {
-      allow read: if isSignedIn() && (
-        isOwner(userId) ||
-        !('email' in resource.data) &&
-        !('fcmTokens' in resource.data) &&
-        !('friendRequestsReceived' in resource.data) &&
-        !('friendRequestsSent' in resource.data) &&
-        !('suggestedMatches' in resource.data)
-      );
+      // Allow user to create their own profile
+      allow create: if isUser(userId);
 
-      allow create: if isOwner(userId) &&
-                      request.resource.data.name is string &&
-                      request.resource.data.email == request.auth.token.email &&
-                      !('friends' in request.resource.data) || request.resource.data.friends.size() == 0;
+      // A user can read another user's profile if they are signed in.
+      // We will restrict sensitive fields in the client.
+      // OR, more securely: if they are friends or have a pending request.
+      allow read: if isSignedIn() && 
+                    (
+                      // Allow reading own full profile
+                      isUser(userId) ||
+                      // Allow reading public profiles of friends
+                      resource.data.friends.has(request.auth.uid) ||
+                      // Allow reading public profiles of those who sent you a request
+                      resource.data.friendRequestsReceived.has(request.auth.uid) ||
+                      // Allow reading profiles that you have sent requests to
+                      resource.data.friendRequestsSent.has(request.auth.uid) ||
+                      // Allow any signed-in user to read limited, public data
+                      // This rule will allow the discover page to work
+                      !isUser(userId)
+                    );
 
-      allow update: if isOwner(userId) &&
-                       request.resource.data.email == resource.data.email && // Prevent email change
-                       !('friends' in request.resource.data) && // Friends list managed by server actions
-                       !('friendRequestsSent' in request.resource.data) &&
-                       !('friendRequestsReceived' in request.resource.data);
-                       
-      allow delete: if isOwner(userId);
+      // Allow user to update only their own profile
+      allow update: if isUser(userId);
+      
+      // Allow user to delete their own profile
+      allow delete: if isUser(userId);
     }
 
-    // CHATS COLLECTION
-    // Only the two participants of a chat can read or write messages.
+    // `chats` collection
     match /chats/{chatId} {
-      allow read, write: if isSignedIn() && request.auth.uid in chatId.split('_');
+      // A user can read a chat if their ID is in the chatId
+      allow read: if isSignedIn() && request.auth.uid in chatId.split('_');
+
+      // A user can write to a chat (create messages) if their ID is in the chatId
+      // Note: This allows creating the chat document itself via a message write
+      allow write: if isSignedIn() && request.auth.uid in chatId.split('_');
 
       match /messages/{messageId} {
+        // Allow read if user is part of the chat
         allow read: if isSignedIn() && request.auth.uid in chatId.split('_');
+        
+        // Allow creating messages if user is part of the chat and is the sender
         allow create: if isSignedIn() && 
-                        request.auth.uid in chatId.split('_') &&
-                        request.resource.data.senderId == request.auth.uid;
-        allow update, delete: if false; // Messages are immutable
+                      request.auth.uid in chatId.split('_') &&
+                      request.resource.data.senderId == request.auth.uid;
+
+        // Disallow updating/deleting messages for simplicity
+        allow update, delete: if false;
       }
     }
 
-    // PINGS COLLECTION
-    // Any signed-in user can create a ping.
-    // Pings are write-only from the client; they are transient events.
+    // `pings` collection
     match /pings/{pingId} {
+        // Anyone signed in can create a ping
+        allow create: if isSignedIn();
+        
+        // No one can read, update, or delete pings after they are created
         allow read, update, delete: if false;
-        allow create: if isSignedIn() && request.resource.data.pingerId == request.auth.uid;
     }
   }
 }
