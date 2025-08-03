@@ -64,12 +64,14 @@ export default function DiscoverPage() {
   const { toast } = useToast();
   const { user, isLoading: isUserLoading, updateUser } = useUser();
   const { location, loading: locationLoading, error: locationError } = useLocation();
+  
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isFetchingUsers, setIsFetchingUsers] = useState(true);
+  
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isPinging, setIsPinging] = useState<string | null>(null);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
   const [requestStatus, setRequestStatus] = useState<RequestStatus>('add');
-  const [matchedUsers, setMatchedUsers] = useState<User[]>([]);
 
   useEffect(() => {
     if (!isUserLoading && !user) {
@@ -87,34 +89,18 @@ export default function DiscoverPage() {
   }, [location, user?.id, updateUser]);
   
   useEffect(() => {
-    if (!user || !location) return;
+    if (!user) return;
 
     setIsFetchingUsers(true);
     const usersCol = collection(db, "users");
     const q = query(usersCol);
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const allUsers = snapshot.docs
+      const usersData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as User))
-        .filter(u => u.id !== user.id);
+        .filter(u => u.id !== user.id && u.location); // Filter out current user and users without location
       
-      const searchRadius = user.discoveryRadius ?? 0.5;
-
-      const nearbyUsers = allUsers
-        .filter(otherUser => otherUser.location)
-        .map(otherUser => ({
-          ...otherUser,
-          distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
-        }))
-        .filter(otherUser => otherUser.distance! <= searchRadius);
-        
-      const scoredUsers = nearbyUsers.map(otherUser => ({
-          ...otherUser,
-          score: calculateMatchScore(user, otherUser),
-      }));
-
-      const finalMatches = scoredUsers.filter(u => u.score > 0).sort((a, b) => b.score - a.score);
-      setMatchedUsers(finalMatches);
+      setAllUsers(usersData);
       setIsFetchingUsers(false);
     }, (error) => {
       console.error("Error fetching users with snapshot:", error);
@@ -123,7 +109,27 @@ export default function DiscoverPage() {
     });
 
     return () => unsubscribe();
-  }, [user, location, toast]);
+  }, [user, toast]);
+
+  const matchedUsers = useMemo(() => {
+    if (!user || !location || allUsers.length === 0) return [];
+    
+    const searchRadius = user.discoveryRadius ?? 0.5;
+
+    const nearbyUsers = allUsers
+      .map(otherUser => ({
+        ...otherUser,
+        distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
+      }))
+      .filter(otherUser => otherUser.distance! <= searchRadius);
+      
+    const scoredUsers = nearbyUsers.map(otherUser => ({
+        ...otherUser,
+        score: calculateMatchScore(user, otherUser),
+    }));
+
+    return scoredUsers.filter(u => u.score > 0).sort((a, b) => b.score - a.score);
+  }, [user, location, allUsers]);
 
   useEffect(() => {
     if (user && selectedUser) {
