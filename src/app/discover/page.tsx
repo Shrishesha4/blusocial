@@ -14,7 +14,7 @@ import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send,
 import Link from "next/link";
 import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, onSnapshot, query } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -89,42 +89,40 @@ export default function DiscoverPage() {
   useEffect(() => {
     if (!user || !location) return;
 
-    const fetchAndProcessUsers = async () => {
-        setIsFetchingUsers(true);
-        try {
-            const usersCol = collection(db, "users");
-            const userSnapshot = await getDocs(usersCol);
-            const allUsers = userSnapshot.docs
-                .map(doc => ({ id: doc.id, ...doc.data() } as User))
-                .filter(u => u.id !== user.id);
-            
-            const searchRadius = user.discoveryRadius ?? 0.5;
+    setIsFetchingUsers(true);
+    const usersCol = collection(db, "users");
+    const q = query(usersCol);
 
-            const nearbyUsers = allUsers
-              .filter(otherUser => otherUser.location)
-              .map(otherUser => ({
-                ...otherUser,
-                distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
-              }))
-              .filter(otherUser => otherUser.distance! <= searchRadius);
-              
-            const scoredUsers = nearbyUsers.map(otherUser => ({
-                ...otherUser,
-                score: calculateMatchScore(user, otherUser),
-            }));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const allUsers = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as User))
+        .filter(u => u.id !== user.id);
+      
+      const searchRadius = user.discoveryRadius ?? 0.5;
 
-            const finalMatches = scoredUsers.filter(u => u.score > 0).sort((a, b) => b.score - a.score);
-            setMatchedUsers(finalMatches);
+      const nearbyUsers = allUsers
+        .filter(otherUser => otherUser.location)
+        .map(otherUser => ({
+          ...otherUser,
+          distance: getDistance(location.latitude, location.longitude, otherUser.location!.lat, otherUser.location!.lng),
+        }))
+        .filter(otherUser => otherUser.distance! <= searchRadius);
+        
+      const scoredUsers = nearbyUsers.map(otherUser => ({
+          ...otherUser,
+          score: calculateMatchScore(user, otherUser),
+      }));
 
-        } catch (error) {
-            console.error("Error fetching users:", error);
-            toast({ variant: "destructive", title: "Error", description: "Could not fetch users." });
-        } finally {
-            setIsFetchingUsers(false);
-        }
-    };
+      const finalMatches = scoredUsers.filter(u => u.score > 0).sort((a, b) => b.score - a.score);
+      setMatchedUsers(finalMatches);
+      setIsFetchingUsers(false);
+    }, (error) => {
+      console.error("Error fetching users with snapshot:", error);
+      toast({ variant: "destructive", title: "Error", description: "Could not fetch users." });
+      setIsFetchingUsers(false);
+    });
 
-    fetchAndProcessUsers();
+    return () => unsubscribe();
   }, [user, location, toast]);
 
   useEffect(() => {
