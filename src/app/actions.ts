@@ -6,7 +6,7 @@ import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profi
 import { db } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit, deleteDoc } from "firebase/firestore";
 import type { User } from "@/lib/types";
-import { adminMessaging, adminAuth, adminDb } from "@/lib/firebase-admin";
+import { getAdminAuth, getAdminMessaging } from "@/lib/firebase-admin";
 import { getDistance } from "@/lib/location";
 
 export async function getAIProfileAdvice(
@@ -39,40 +39,36 @@ async function sendPushNotification({
   body: string;
   url: string;
 }) {
-  if (!adminMessaging) {
-    console.warn("Firebase Admin SDK or Messaging service not initialized. Skipping push notification. Is GOOGLE_SERVICE_ACCOUNT_JSON configured?");
-    return;
-  }
-  
-  if (!recipient.fcmTokens || recipient.fcmTokens.length === 0) {
-    console.log(`User ${recipient.name} has no FCM tokens, skipping notification.`);
-    return;
-  }
-
-  const message = {
-    notification: {
-      title,
-      body,
-    },
-    webpush: {
-      fcm_options: {
-        link: url,
-      },
-      notification: {
-        icon: "https://raw.githubusercontent.com/Shrishesha4/blusocial/refs/heads/main/src/app/logo192.png",
-      }
-    },
-    tokens: recipient.fcmTokens,
-  };
-
   try {
+    const adminMessaging = getAdminMessaging();
+     if (!recipient.fcmTokens || recipient.fcmTokens.length === 0) {
+      console.log(`User ${recipient.name} has no FCM tokens, skipping notification.`);
+      return;
+    }
+
+    const message = {
+      notification: {
+        title,
+        body,
+      },
+      webpush: {
+        fcm_options: {
+          link: url,
+        },
+        notification: {
+          icon: "https://raw.githubusercontent.com/Shrishesha4/blusocial/refs/heads/main/src/app/logo192.png",
+        }
+      },
+      tokens: recipient.fcmTokens,
+    };
+
     const response = await adminMessaging.sendEachForMulticast(message);
     console.log('Successfully sent notification:', response);
     if (response.failureCount > 0) {
       console.log('Failed notifications:', response.responses);
     }
   } catch (error) {
-    console.error('Error sending notification:', error);
+    console.warn("Firebase Admin SDK or Messaging service not initialized. Skipping push notification. Is GOOGLE_SERVICE_ACCOUNT_JSON configured?", error);
   }
 }
 
@@ -319,50 +315,50 @@ export async function sendMessage({ chatId, senderId, text }: { chatId: string, 
 }
 
 export async function findAndSuggestMatch(userId: string) {
-  if (!adminMessaging) {
-    console.warn("Notifications are disabled.");
-    return;
-  }
+  try {
+    const adminMessaging = getAdminMessaging();
+    const userRef = doc(db, "users", userId);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
 
-  const userRef = doc(db, "users", userId);
-  const userSnap = await getDoc(userRef);
-  if (!userSnap.exists()) return;
+    const user = { id: userSnap.id, ...userSnap.data() } as User;
+    if (!user.location || !user.interests || user.interests.length === 0) return;
 
-  const user = { id: userSnap.id, ...userSnap.data() } as User;
-  if (!user.location || !user.interests || user.interests.length === 0) return;
+    const allUsersSnap = await getDocs(collection(db, "users"));
+    const nearbyUsers = allUsersSnap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() } as User))
+      .filter(otherUser => {
+        if (!otherUser.location || otherUser.id === user.id) return false;
+        const distance = getDistance(user.location!.lat, user.location!.lng, otherUser.location.lat, otherUser.location.lng);
+        return distance <= (user.discoveryRadius ?? 0.5);
+      });
 
-  const allUsersSnap = await getDocs(collection(db, "users"));
-  const nearbyUsers = allUsersSnap.docs
-    .map(doc => ({ id: doc.id, ...doc.data() } as User))
-    .filter(otherUser => {
-      if (!otherUser.location || otherUser.id === user.id) return false;
-      const distance = getDistance(user.location!.lat, user.location!.lng, otherUser.location.lat, otherUser.location.lng);
-      return distance <= (user.discoveryRadius ?? 0.5);
+    const currentUserInterests = new Set(user.interests);
+    
+    const potentialMatch = nearbyUsers.find(otherUser => {
+      const hasSharedInterests = otherUser.interests?.some(interest => currentUserInterests.has(interest));
+      if (!hasSharedInterests) return false;
+
+      const alreadySuggested = user.suggestedMatches?.includes(otherUser.id);
+      const alreadyFriends = user.friends?.includes(otherUser.id);
+      const hasPendingRequest = user.friendRequestsReceived?.includes(otherUser.id) || user.friendRequestsSent?.includes(otherUser.id);
+
+      return !alreadySuggested && !alreadyFriends && !hasPendingRequest;
     });
-
-  const currentUserInterests = new Set(user.interests);
-  
-  const potentialMatch = nearbyUsers.find(otherUser => {
-    const hasSharedInterests = otherUser.interests?.some(interest => currentUserInterests.has(interest));
-    if (!hasSharedInterests) return false;
-
-    const alreadySuggested = user.suggestedMatches?.includes(otherUser.id);
-    const alreadyFriends = user.friends?.includes(otherUser.id);
-    const hasPendingRequest = user.friendRequestsReceived?.includes(otherUser.id) || user.friendRequestsSent?.includes(otherUser.id);
-
-    return !alreadySuggested && !alreadyFriends && !hasPendingRequest;
-  });
-  
-  if (potentialMatch) {
-    await sendPushNotification({
-      recipient: user,
-      title: '✨ Someone new is nearby!',
-      body: `You and ${potentialMatch.name} have similar interests. Check them out!`,
-      url: '/discover',
-    });
-    await updateDoc(userRef, {
-      suggestedMatches: arrayUnion(potentialMatch.id),
-    });
+    
+    if (potentialMatch) {
+      await sendPushNotification({
+        recipient: user,
+        title: '✨ Someone new is nearby!',
+        body: `You and ${potentialMatch.name} have similar interests. Check them out!`,
+        url: '/discover',
+      });
+      await updateDoc(userRef, {
+        suggestedMatches: arrayUnion(potentialMatch.id),
+      });
+    }
+  } catch(error) {
+     console.warn("Notifications are disabled.");
   }
 }
 
@@ -397,7 +393,6 @@ export async function deleteAccount(userId: string) {
 
   try {
       // Use helper functions to get services with proper error handling
-      const { getAdminAuth } = await import('@/lib/firebase-admin');
       const adminAuth = getAdminAuth(); // This will throw a clear error if not initialized
       
       console.log('Admin Auth service obtained successfully');
@@ -474,4 +469,3 @@ export async function deleteAccount(userId: string) {
       throw new Error(`Failed to delete account: ${error.message || 'Unknown error'}`);
   }
 }
-
