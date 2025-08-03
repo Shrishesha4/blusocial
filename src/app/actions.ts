@@ -393,18 +393,37 @@ export async function deleteAccount(userId: string) {
   }
 
   try {
-    initializeAdmin(); // Ensure admin is initialized before any action
+    console.log(`Starting account deletion process for user: ${userId}`);
+    
+    // Initialize admin services and verify they're working
+    initializeAdmin();
+    const adminAuth = getAdminAuth();
+    
+    // Verify the user exists in Auth before starting cleanup
+    try {
+      const userRecord = await adminAuth.getUser(userId);
+      console.log(`User found in Auth: ${userRecord.email}`);
+    } catch (authError: any) {
+      if (authError.code === 'auth/user-not-found') {
+        console.log(`User ${userId} not found in Auth, proceeding with Firestore cleanup only`);
+      } else {
+        console.error('Error checking user in Auth:', authError);
+        throw new Error(`Authentication service error: ${authError.message}`);
+      }
+    }
 
-    // 1. Clean up user's relationships in Firestore (friends lists, requests, etc.)
+    // 1. Clean up user's relationships in Firestore
     const userDocRef = doc(db, "users", userId);
     const userDoc = await getDoc(userDocRef);
 
     if (userDoc.exists()) {
-      console.log(`Starting cleanup for user: ${userId}`);
+      console.log(`Starting relationship cleanup for user: ${userId}`);
       const userData = userDoc.data() as User;
       const friends = userData.friends || [];
       const friendRequestsSent = userData.friendRequestsSent || [];
       const friendRequestsReceived = userData.friendRequestsReceived || [];
+
+      console.log(`Cleaning up: ${friends.length} friends, ${friendRequestsSent.length} sent requests, ${friendRequestsReceived.length} received requests`);
 
       // Create a batch to perform all Firestore writes at once
       const cleanupBatch = writeBatch(db);
@@ -429,36 +448,56 @@ export async function deleteAccount(userId: string) {
 
       // Commit the cleanup batch
       await cleanupBatch.commit();
-      console.log(`Relationship cleanup complete for user: ${userId}`);
+      console.log(`Relationship cleanup completed for user: ${userId}`);
+    } else {
+      console.log(`User document not found in Firestore: ${userId}`);
     }
 
     // 2. Delete the user's document from Firestore
     console.log(`Deleting user document: ${userId}`);
     await deleteDoc(userDocRef);
-    console.log(`User document deleted: ${userId}`);
+    console.log(`User document deleted successfully: ${userId}`);
 
     // 3. Delete the user from Firebase Authentication using the Admin SDK
-    console.log(`Deleting user from Firebase Auth: ${userId}`);
-    const adminAuth = getAdminAuth(); // This should now work reliably
-    await adminAuth.deleteUser(userId);
-    console.log(`User deleted from Auth successfully: ${userId}`);
+    console.log(`Attempting to delete user from Firebase Auth: ${userId}`);
+    try {
+      await adminAuth.deleteUser(userId);
+      console.log(`✅ User successfully deleted from Firebase Auth: ${userId}`);
+    } catch (authDeleteError: any) {
+      console.error(`❌ Failed to delete user from Firebase Auth: ${userId}`, authDeleteError);
+      
+      if (authDeleteError.code === 'auth/user-not-found') {
+        console.log(`User ${userId} was already deleted from Auth`);
+        // Continue - this is not a failure
+      } else {
+        // This is a critical error - the user document is deleted but Auth user remains
+        console.error(`CRITICAL: User document deleted but Auth deletion failed for ${userId}`);
+        throw new Error(`Failed to completely delete account. Auth deletion failed: ${authDeleteError.message}`);
+      }
+    }
 
+    console.log(`✅ Account deletion completed successfully for user: ${userId}`);
     return { success: true, message: "Account deleted successfully." };
 
   } catch (error: any) {
-    console.error(`Error deleting account for user ${userId}:`, error);
+    console.error(`❌ Error during account deletion for user ${userId}:`, error);
 
-    // Provide a more specific error message based on the caught error
-    if (error.message?.includes('not initialized')) {
-      throw new Error("Account deletion service is currently unavailable. Please try again later.");
+    // Provide specific error messages
+    if (error.message?.includes('not initialized') || error.message?.includes('not available')) {
+      throw new Error("Account deletion service is currently unavailable. Please check server configuration.");
     }
-    if (error.code === 'auth/user-not-found') {
-      console.warn(`User ${userId} was already deleted from Auth, but cleanup may have failed.`);
-      // Still consider it a success from the user's perspective
-      return { success: true, message: "Account already deleted." };
+    
+    if (error.message?.includes('Auth deletion failed')) {
+      // Re-throw the specific auth deletion error
+      throw error;
+    }
+    
+    if (error.code === 'permission-denied') {
+      throw new Error("Permission denied. Please check your security rules.");
     }
     
     // Generic fallback error
-    throw new Error("Failed to delete account. If the problem persists, contact support.");
+    throw new Error(`Failed to delete account: ${error.message || 'Unknown error'}`);
   }
 }
+
