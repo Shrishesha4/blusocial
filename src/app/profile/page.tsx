@@ -65,7 +65,7 @@ const profileFormSchema = z.object({
   discoveryRadius: z.number().min(0.1).max(40).optional(),
   age: z.preprocess(
     (val) => (val === "" ? undefined : val),
-    z.coerce.number({ invalid_type_error: "Please enter a valid age." }).min(18, { message: "You must be 18 or older." }).max(99).optional()
+    z.coerce.number({ invalid_type_error: "Please enter a valid age." }).min(18, { message: "You must be 18 or older." }).max(99).optional().nullable()
   ),
   pronouns: z.string().max(25, { message: "Pronouns cannot exceed 25 characters." }).optional(),
   lookingFor: z.array(z.string()).optional(),
@@ -128,7 +128,7 @@ export default function ProfilePage() {
         socials: { twitter: "", instagram: "", linkedin: "", facebook: "" },
         profileEmoji: "👋",
         discoveryRadius: 0.5,
-        age: undefined,
+        age: "" as any, // Initialize with empty string
         pronouns: "",
         lookingFor: [],
     },
@@ -152,7 +152,7 @@ export default function ProfilePage() {
         },
         profileEmoji: user.profileEmoji ?? "👋",
         discoveryRadius: user.discoveryRadius ?? 0.5,
-        age: user.age ?? undefined,
+        age: user.age ?? "",
         pronouns: user.pronouns ?? "",
         lookingFor: user.lookingFor ?? [],
       });
@@ -165,11 +165,10 @@ export default function ProfilePage() {
     setIsSaving(true);
     const interestsArray = data.interests?.split(',').map(i => i.trim()).filter(Boolean) ?? [];
     
-    // Create payload, ensuring age is either a number or null for deletion
-    const payload: Partial<ProfileFormValues> & { interests: string[] } = {
+    const payload: Partial<Omit<User, 'id' | 'email'>> = {
         ...data,
         interests: interestsArray,
-        age: data.age || null, // Send null to Firestore to remove the field
+        age: data.age || null,
     };
 
     try {
@@ -390,7 +389,7 @@ export default function ProfilePage() {
                             <FormItem>
                                 <FormLabel>Age</FormLabel>
                                 <FormControl>
-                                    <Input type="number" placeholder="e.g. 25" {...field} onChange={event => field.onChange(event.target.valueAsNumber || '')} />
+                                    <Input type="number" placeholder="e.g. 25" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
