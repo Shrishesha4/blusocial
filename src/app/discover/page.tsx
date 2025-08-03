@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -250,7 +251,7 @@ export default function DiscoverPage() {
                 <CardHeader className="flex flex-row items-center gap-4">
                     <div className="relative">
                         <Avatar className="h-12 w-12 border-2 border-primary text-3xl flex items-center justify-center">
-                            <AvatarFallback className="bg-transparent">{match.profileEmoji ?? match.name.charAt(0)}</AvatarFallback>
+                            <AvatarFallback className="bg-transparent">{match.profileEmoji ?? (match.name ? match.name.charAt(0) : '?')}</AvatarFallback>
                         </Avatar>
                         <Circle className="absolute bottom-0 right-0 h-3.5 w-3.5 fill-green-500 stroke-green-500" />
                     </div>
