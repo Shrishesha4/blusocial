@@ -25,6 +25,8 @@ export interface User {
   age?: number;
   pronouns?: string;
   lookingFor?: string[];
+  status?: 'online' | 'offline';
+  lastSeen?: string; // ISO 8601 date string
 }
 
 export interface Message {

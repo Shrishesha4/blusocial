@@ -10,11 +10,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook, Users, UserPlus, Search } from "lucide-react";
+import { AlertTriangle, Frown, Heart, Instagram, MapPin, Twitter, Loader2, Send, Linkedin, Facebook, Users, UserPlus, Search, Circle } from "lucide-react";
 import Link from "next/link";
 import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
-import { collection, onSnapshot, query } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -93,12 +93,17 @@ export default function DiscoverPage() {
 
     setIsFetchingUsers(true);
     const usersCol = collection(db, "users");
-    const q = query(usersCol);
+    // Query for online users who are not the current user and have a location
+    const q = query(
+      usersCol,
+      where("status", "==", "online"),
+      where("__name__", "!=", user.id),
+    );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const usersData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as User))
-        .filter(u => u.id !== user.id && u.location); // Filter out current user and users without location
+        .filter(u => !!u.location); // Ensure location exists client-side
       
       setAllUsers(usersData);
       setIsFetchingUsers(false);
@@ -243,9 +248,12 @@ export default function DiscoverPage() {
               return (
               <Card key={match.id} className="flex flex-col overflow-hidden transition-all hover:shadow-lg hover:border-accent">
                 <CardHeader className="flex flex-row items-center gap-4">
-                  <Avatar className="h-12 w-12 border-2 border-primary text-3xl flex items-center justify-center">
-                    <AvatarFallback className="bg-transparent">{match.profileEmoji ?? match.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
+                    <div className="relative">
+                        <Avatar className="h-12 w-12 border-2 border-primary text-3xl flex items-center justify-center">
+                            <AvatarFallback className="bg-transparent">{match.profileEmoji ?? match.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <Circle className="absolute bottom-0 right-0 h-3.5 w-3.5 fill-green-500 stroke-green-500" />
+                    </div>
                   <div className="flex-1">
                     <CardTitle className="font-headline">{match.name}</CardTitle>
                     <CardDescription className="flex items-center gap-3 text-sm flex-wrap">
@@ -306,9 +314,9 @@ export default function DiscoverPage() {
           <div className="flex justify-center items-center h-96">
               <Alert className="max-w-md text-center">
                   <Frown className="h-5 w-5 mx-auto mb-2" />
-                  <AlertTitle>No Matches Found</AlertTitle>
+                  <AlertTitle>No One's Around</AlertTitle>
                   <AlertDescription>
-                  We couldn&apos;t find anyone nearby with similar interests. Try expanding your profile details or increasing your discovery radius.
+                  We couldn&apos;t find anyone online nearby. Check back later, or try expanding your discovery radius in your profile settings.
                   </AlertDescription>
               </Alert>
           </div>

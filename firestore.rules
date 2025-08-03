@@ -1,59 +1,63 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
+  
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    // Default deny all reads and writes
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
-    // Users Collection
     match /users/{userId} {
-      // Allow read access to a user's own document, their friends' documents, or documents of users who sent them a friend request.
+      allow create: if isSignedIn() && request.auth.uid == userId;
+
       allow read: if isSignedIn() && 
-                    (isOwner(userId) || 
-                     userId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.friends ||
-                     userId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.friendRequestsReceived);
+                    (request.auth.uid == userId ||
+                     exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+                       userId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.friends ||
+                       userId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.friendRequestsReceived
+                     ) ||
+                     // Allow reading any public profile data that isn't sensitive
+                     !('email' in resource.data) && 
+                     !('fcmTokens' in resource.data) &&
+                     !('friendRequestsReceived' in resource.data) &&
+                     !('friendRequestsSent' in resource.data)
+                    );
       
-      // A user can create their own profile, and can only update their own profile.
-      // No one can delete a user document directly; this must be handled by a server-side function.
-      allow create, update: if isOwner(userId);
-      allow delete: if false;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+
+      allow delete: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // Chats collection
     match /chats/{chatId} {
-      // Chat ID is formatted as 'userId1_userId2'
+      // Chat ID must be a combination of two user IDs, sorted alphabetically
+      function isValidChatId() {
+        let userIds = chatId.split('_');
+        return userIds.length == 2 && userIds[0] < userIds[1];
+      }
+      
       function isChatMember() {
         return request.auth.uid in chatId.split('_');
       }
-      
-      allow read, write: if isSignedIn() && isChatMember();
-      
-      // Messages subcollection
+
+      allow read, write: if isSignedIn() && isChatMember() && isValidChatId();
+
       match /messages/{messageId} {
-        // Only chat members can read/write messages
-        allow read, write: if isSignedIn() && isChatMember();
+        allow read: if isChatMember();
+        
+        allow create: if isChatMember() && request.resource.data.senderId == request.auth.uid;
+        
+        allow update, delete: if false; // Messages are immutable
       }
     }
 
-    // Pings collection
     match /pings/{pingId} {
-      // Any signed in user can create a ping.
       allow create: if isSignedIn();
-      // Pings are write-once, they cannot be read or updated after creation.
-      allow read, update, delete: if false;
+      allow read, update, delete: if false; // Pings are write-only events
+    }
+    
+    // Default deny all other collections
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

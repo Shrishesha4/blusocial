@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import React, { useEffect } from 'react';
+import React from 'react';
 import { usePathname } from "next/navigation";
 import Link from 'next/link';
 import {
@@ -14,13 +14,13 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarMenuBadge,
-  SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Home, UserCircle, Users } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
 import { useFcm } from "@/hooks/use-fcm";
+import { usePresence } from "@/hooks/use-presence";
 
 function Logo() {
   return (
@@ -74,8 +74,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
   const { user, isLoading } = useUser();
   
-  // This hook handles requesting notification permissions and receiving foreground messages.
   useFcm();
+  usePresence();
 
   const [isClient, setIsClient] = React.useState(false);
   React.useEffect(() => {
@@ -155,9 +155,6 @@ export function AppShell({ children }: { children: ReactNode }) {
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
-          <SidebarFooter>
-            {/* Sign Out button moved to profile page */}
-          </SidebarFooter>
         </Sidebar>
       )}
       <SidebarInset>
