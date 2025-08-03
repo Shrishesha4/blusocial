@@ -3,7 +3,7 @@
 
 import { useEffect, useRef } from 'react';
 import { useUser } from '@/context/user-context';
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export function usePresence() {
@@ -17,17 +17,19 @@ export function usePresence() {
 
     const goOnline = () => {
         if (isUnloading.current) return;
-        updateDoc(userStatusRef, {
+        // Use setDoc with merge to prevent error if document doesn't exist yet
+        setDoc(userStatusRef, {
             status: 'online',
             lastSeen: serverTimestamp() 
-        });
+        }, { merge: true });
     };
 
     const goOffline = () => {
-        updateDoc(userStatusRef, {
+        // Use setDoc with merge here as well for safety
+        setDoc(userStatusRef, {
             status: 'offline',
             lastSeen: serverTimestamp()
-        });
+        }, { merge: true });
     };
     
     goOnline();
