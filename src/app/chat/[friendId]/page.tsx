@@ -102,11 +102,12 @@ export default function ChatPage() {
             const unsubscribe = onSnapshot(messagesQuery, (snapshot) => {
                 const messagesData = snapshot.docs.map(doc => {
                     const data = doc.data();
+                    const timestamp = data.timestamp as Timestamp;
                     return {
                         id: doc.id,
                         senderId: data.senderId,
                         text: data.text,
-                        timestamp: (data.timestamp as Timestamp)?.toDate().toISOString() ?? new Date().toISOString()
+                        timestamp: timestamp?.toDate ? timestamp.toDate().toISOString() : new Date().toISOString()
                     } as Message;
                 });
                 setMessages(messagesData);

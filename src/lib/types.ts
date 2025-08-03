@@ -1,3 +1,5 @@
+import type { Timestamp } from "firebase/firestore";
+
 export interface User {
   id: string; // Firebase UID
   name: string;
@@ -26,12 +28,12 @@ export interface User {
   pronouns?: string;
   lookingFor?: string[];
   status?: 'online' | 'offline';
-  lastSeen?: string; // ISO 8601 date string
+  lastSeen?: Timestamp | string; // Can be a server timestamp or an ISO string
 }
 
 export interface Message {
   id: string;
   text: string;
   senderId: string;
-  timestamp: string; // ISO 8601 date string
+  timestamp: Timestamp | string; // Can be a server timestamp or an ISO string
 }
