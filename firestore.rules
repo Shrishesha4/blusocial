@@ -1,0 +1,65 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // USERS COLLECTION
+    // Users can read public data on other profiles, but only write to their own.
+    // Sensitive data like email, fcmTokens, and friend requests are protected.
+    match /users/{userId} {
+      allow read: if isSignedIn() && (
+        isOwner(userId) ||
+        !('email' in resource.data) &&
+        !('fcmTokens' in resource.data) &&
+        !('friendRequestsReceived' in resource.data) &&
+        !('friendRequestsSent' in resource.data) &&
+        !('suggestedMatches' in resource.data)
+      );
+
+      allow create: if isOwner(userId) &&
+                      request.resource.data.name is string &&
+                      request.resource.data.email == request.auth.token.email &&
+                      !('friends' in request.resource.data) || request.resource.data.friends.size() == 0;
+
+      allow update: if isOwner(userId) &&
+                       request.resource.data.email == resource.data.email && // Prevent email change
+                       !('friends' in request.resource.data) && // Friends list managed by server actions
+                       !('friendRequestsSent' in request.resource.data) &&
+                       !('friendRequestsReceived' in request.resource.data);
+                       
+      allow delete: if isOwner(userId);
+    }
+
+    // CHATS COLLECTION
+    // Only the two participants of a chat can read or write messages.
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn() && request.auth.uid in chatId.split('_');
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && request.auth.uid in chatId.split('_');
+        allow create: if isSignedIn() && 
+                        request.auth.uid in chatId.split('_') &&
+                        request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false; // Messages are immutable
+      }
+    }
+
+    // PINGS COLLECTION
+    // Any signed-in user can create a ping.
+    // Pings are write-only from the client; they are transient events.
+    match /pings/{pingId} {
+        allow read, update, delete: if false;
+        allow create: if isSignedIn() && request.resource.data.pingerId == request.auth.uid;
+    }
+  }
+}
