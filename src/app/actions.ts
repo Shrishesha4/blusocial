@@ -5,10 +5,22 @@
 import { profileAdvisor } from "@/ai/flows/profile-advisor";
 import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profile-advisor";
 import { db } from "@/lib/firebase";
-import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit, deleteDoc } from "firebase/firestore";
+import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit, deleteDoc, type Timestamp } from "firebase/firestore";
 import type { User } from "@/lib/types";
 import { getAdminAuth, getAdminMessaging, initializeAdmin } from "@/lib/firebase-admin";
 import { getDistance } from "@/lib/location";
+
+// Helper to convert Firestore Timestamps in an object to ISO strings
+function serializeTimestamps(data: Record<string, any>): Record<string, any> {
+  const serializedData = { ...data };
+  for (const key in serializedData) {
+    if (serializedData[key] && typeof serializedData[key].toDate === 'function') {
+      serializedData[key] = serializedData[key].toDate().toISOString();
+    }
+  }
+  return serializedData;
+}
+
 
 export async function getAIProfileAdvice(
   data: ProfileAdvisorInput
@@ -324,12 +336,12 @@ export async function findAndSuggestMatch(userId: string) {
     const userSnap = await getDoc(userRef);
     if (!userSnap.exists()) return;
 
-    const user = { id: userSnap.id, ...userSnap.data() } as User;
+    const user = { id: userSnap.id, ...serializeTimestamps(userSnap.data()) } as User;
     if (!user.location || !user.interests || user.interests.length === 0) return;
 
     const allUsersSnap = await getDocs(collection(db, "users"));
     const nearbyUsers = allUsersSnap.docs
-      .map(doc => ({ id: doc.id, ...doc.data() } as User))
+      .map(doc => ({ id: doc.id, ...serializeTimestamps(doc.data()) } as User))
       .filter(otherUser => {
         if (!otherUser.location || otherUser.id === user.id) return false;
         const distance = getDistance(user.location!.lat, user.location!.lng, otherUser.location.lat, otherUser.location.lng);
@@ -500,4 +512,3 @@ export async function deleteAccount(userId: string) {
     throw new Error(`Failed to delete account: ${error.message || 'Unknown error'}`);
   }
 }
-
