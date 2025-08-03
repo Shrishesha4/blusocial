@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { ReactNode } from "react";
@@ -77,11 +78,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   useFcm();
   usePresence();
 
-  const [isClient, setIsClient] = React.useState(false);
-  React.useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
   const isAuthPage = pathname === '/';
 
   if (isAuthPage) {
@@ -104,7 +100,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
-      {isClient && !isMobile && (
+      {!isMobile && (
         <Sidebar>
           <SidebarHeader>
             <Logo />
@@ -158,15 +154,15 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Sidebar>
       )}
       <SidebarInset>
-        <div className={cn("p-4 sm:p-6 lg:p-8", isClient && isMobile && "pb-24")}>
-          {isClient && isMobile && user && (
+        <div className={cn("p-4 sm:p-6 lg:p-8", isMobile && "pb-24")}>
+          {isMobile && user && (
             <header className="mb-4">
               <Logo />
             </header>
           )}
           <main>{children}</main>
         </div>
-        {isClient && isMobile && user && <BottomNavBar pathname={pathname} requestCount={friendRequestCount}/>}
+        {isMobile && user && <BottomNavBar pathname={pathname} requestCount={friendRequestCount}/>}
       </SidebarInset>
     </SidebarProvider>
   );

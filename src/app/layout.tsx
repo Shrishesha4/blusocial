@@ -1,22 +1,30 @@
+
+"use client";
+
 import type {Metadata} from 'next';
 import './globals.css';
 import {Toaster} from '@/components/ui/toaster';
 import {AppShell} from '@/components/app-shell';
 import { UserProvider } from '@/context/user-context';
+import { useEffect, useState } from 'react';
 
-export const metadata: Metadata = {
-  title: 'BluSocial',
-  description: 'Find people with similar interests near you.',
-};
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
   return (
     <html lang="en" className="dark">
       <head>
+        <title>BluSocial</title>
+        <meta name="description" content="Find people with similar interests near you." />
         <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -33,7 +41,7 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <UserProvider>
-          <AppShell>{children}</AppShell>
+          {isClient ? <AppShell>{children}</AppShell> : null}
           <Toaster />
         </UserProvider>
       </body>
