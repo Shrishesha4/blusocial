@@ -89,33 +89,48 @@ export default function DiscoverPage() {
     }
   }, [location, user?.id, updateUser]);
   
-  useEffect(() => {
-    if (!user) return;
+  // In your discover page, update the useEffect for fetching users:
+useEffect(() => {
+  if (!user) return;
 
-    setIsFetchingUsers(true);
-    const usersCol = collection(db, "users");
-    // Query for online users who are not the current user and have a location
-    const q = query(
-      usersCol,
-      where("status", "==", "online"),
-      where("__name__", "!=", user.id),
-    );
+  setIsFetchingUsers(true);
+  const usersCol = collection(db, "users");
+  
+  // More robust query - don't rely on status field existing
+  const q = query(
+    usersCol,
+    where("__name__", "!=", user.id)
+  );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+  const unsubscribe = onSnapshot(q, (snapshot) => {
+    try {
       const usersData = snapshot.docs
         .map(doc => ({ id: doc.id, ...doc.data() } as User))
-        .filter(u => !!u.location); // Ensure location exists client-side
+        .filter(u => {
+          // Filter for online users and those with location
+          return u.location && 
+                 u.status === 'online' && 
+                 u.id !== user.id;
+        });
       
       setAllUsers(usersData);
       setIsFetchingUsers(false);
-    }, (error) => {
-      console.error("Error fetching users with snapshot:", error);
-      toast({ variant: "destructive", title: "Error", description: "Could not fetch users." });
+    } catch (error) {
+      console.error("Error processing user data:", error);
+      setAllUsers([]);
       setIsFetchingUsers(false);
-    });
+    }
+  }, (error) => {
+    console.error("Error fetching users with snapshot:", error);
+    // Don't show toast for every error to prevent spam
+    console.warn("Could not fetch users, retrying...");
+    setIsFetchingUsers(false);
+    setAllUsers([]);
+  });
 
-    return () => unsubscribe();
-  }, [user, toast]);
+  return () => unsubscribe();
+}, [user, toast]);
+
 
   const matchedUsers = useMemo(() => {
     if (!user || !location || allUsers.length === 0) return [];

@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Download, ShareSquare } from "lucide-react";
+import { Loader2, Download, SquareSquare } from "lucide-react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, type User as FirebaseAuthUser } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db, googleProvider } from "@/lib/firebase";
@@ -390,7 +390,7 @@ export default function AuthPage() {
 
           {detectedOS === 'ios' && (
               <Alert className="w-full max-w-md">
-                  <ShareSquare className="h-4 w-4" />
+                  <SquareSquare className="h-4 w-4" />
                   <AlertTitle>Install on your iPhone</AlertTitle>
                   <AlertDescription>
                       For a native app experience, tap the Share icon in Safari and select &quot;Add to Home Screen&quot;.
