@@ -1,95 +1,82 @@
+
 import admin from 'firebase-admin';
 
 let adminApp: admin.app.App | null = null;
-let initializationAttempted = false;
 let initializationError: Error | null = null;
+let initializationAttempted = false;
 
 export const initializeAdmin = () => {
-  if (adminApp) return; // Already initialized successfully
-  if (initializationAttempted && initializationError) {
-    throw initializationError; // Re-throw the previous error
+  if (adminApp) {
+    return; // Already initialized successfully
   }
-
+  if (initializationAttempted) {
+    if (initializationError) throw initializationError;
+    return; // Already attempted without error, might be waiting for async
+  }
   initializationAttempted = true;
 
-  // If already initialized by another part of the app
   if (admin.apps.length > 0) {
+    console.log('Using existing Firebase Admin app.');
     adminApp = admin.app();
-    console.log('Using existing Firebase Admin app');
     return;
   }
-  
+
   try {
     const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+
     if (!serviceAccountJson) {
-      initializationError = new Error('GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set');
-      console.error('CRITICAL:', initializationError.message);
+      const errorMsg = 'GOOGLE_SERVICE_ACCOUNT_JSON is not set in the environment. This is required for server-side admin operations. Make sure it is set in your Vercel project settings.';
+      console.error('CRITICAL: Firebase Admin initialization failed:', errorMsg);
+      initializationError = new Error(errorMsg);
       throw initializationError;
     }
     
-    let serviceAccount;
-    try {
-      serviceAccount = JSON.parse(serviceAccountJson);
-    } catch (parseError) {
-      initializationError = new Error('Invalid JSON in GOOGLE_SERVICE_ACCOUNT_JSON');
-      console.error('CRITICAL:', initializationError.message, parseError);
-      throw initializationError;
-    }
-
+    const serviceAccount = JSON.parse(serviceAccountJson);
+    
+    console.log('Initializing new Firebase Admin app...');
     adminApp = admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
-    
-    console.log('Firebase Admin SDK initialized successfully for project:', serviceAccount.project_id);
-    
-    // Test the initialization by making a simple call
-    adminApp.auth().listUsers(1).then(() => {
-      console.log('Firebase Admin Auth is working correctly');
-    }).catch((testError) => {
-      console.error('Firebase Admin Auth test failed:', testError);
-    });
-    
-  } catch (error) {
-    initializationError = error as Error;
-    console.error('CRITICAL: Firebase Admin SDK initialization failed.', error);
-    adminApp = null;
+    console.log('Firebase Admin SDK initialized successfully.');
+
+  } catch (error: any) {
+    const errorMsg = `Firebase Admin SDK initialization failed: ${error.message}`;
+    console.error('CRITICAL:', errorMsg);
+    initializationError = new Error(errorMsg);
+    adminApp = null; // Ensure app is null on failure
     throw initializationError;
   }
 };
 
-// Initialize at module load
-try {
-  initializeAdmin();
-} catch (error) {
-  console.error('Failed to initialize Firebase Admin SDK at module load:', error);
+
+// Helper to get a service, initializing if needed.
+function getService<T>(
+  serviceFactory: (app: admin.app.App) => T,
+  serviceName: string
+): T {
+  try {
+    initializeAdmin();
+    if (!adminApp) {
+      throw new Error('Firebase Admin App is not available.');
+    }
+    return serviceFactory(adminApp);
+  } catch (error: any) {
+    console.error(`Failed to get Firebase Admin ${serviceName}:`, error.message);
+    if (initializationError) {
+       throw new Error(`Firebase Admin ${serviceName} not available due to initialization failure: ${initializationError.message}`);
+    }
+    throw new Error(`Firebase Admin ${serviceName} not initialized. The service is currently unavailable.`);
+  }
 }
 
 export function getAdminAuth(): admin.auth.Auth {
-  if (!adminApp) {
-    if (initializationError) {
-      throw new Error(`Firebase Admin Auth not available: ${initializationError.message}`);
-    }
-    throw new Error('Firebase Admin Auth not initialized. The service is currently unavailable.');
-  }
-  return adminApp.auth();
+    return getService(app => app.auth(), 'Auth');
 }
 
 export function getAdminDb(): admin.firestore.Firestore {
-  if (!adminApp) {
-    if (initializationError) {
-      throw new Error(`Firebase Admin Firestore not available: ${initializationError.message}`);
-    }
-    throw new Error('Firebase Admin Firestore not initialized. The service is currently unavailable.');
-  }
-  return adminApp.firestore();
+    return getService(app => app.firestore(), 'Firestore');
 }
 
 export function getAdminMessaging(): admin.messaging.Messaging {
-  if (!adminApp) {
-    if (initializationError) {
-      throw new Error(`Firebase Admin Messaging not available: ${initializationError.message}`);
-    }
-    throw new Error('Firebase Admin Messaging not initialized. The service is currently unavailable.');
-  }
-  return adminApp.messaging();
+    return getService(app => app.messaging(), 'Messaging');
 }
