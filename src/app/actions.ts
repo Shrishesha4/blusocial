@@ -6,7 +6,7 @@ import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profi
 import { db } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit, deleteDoc } from "firebase/firestore";
 import type { User } from "@/lib/types";
-import { adminMessaging, adminAuth } from "@/lib/firebase-admin";
+import { adminMessaging, adminAuth, adminDb } from "@/lib/firebase-admin";
 import { getDistance } from "@/lib/location";
 
 export async function getAIProfileAdvice(
@@ -389,45 +389,89 @@ export async function removeFriend({ userId, friendId }: { userId: string, frien
 }
 
 export async function deleteAccount(userId: string) {
+  console.log('deleteAccount called with userId:', userId);
+  
   if (!userId) {
       throw new Error("User ID is required to delete an account.");
   }
 
-  if (!adminAuth) {
-      console.error("Firebase Admin SDK not initialized. Cannot delete user from Auth.");
-      throw new Error("Account deletion service is currently unavailable.");
-  }
-
   try {
-      // 1. Remove user from friends' friend lists
+      // Use helper functions to get services with proper error handling
+      const { getAdminAuth } = await import('@/lib/firebase-admin');
+      const adminAuth = getAdminAuth(); // This will throw a clear error if not initialized
+      
+      console.log('Admin Auth service obtained successfully');
+
+      // 1. Remove user from friends' friend lists using client SDK
       const userDoc = await getDoc(doc(db, "users", userId));
       if (userDoc.exists()) {
+          console.log('User document found, cleaning up relationships...');
           const userData = userDoc.data() as User;
           const friends = userData.friends || [];
+          const friendRequestsSent = userData.friendRequestsSent || [];
+          const friendRequestsReceived = userData.friendRequestsReceived || [];
           
-          // Remove this user from all friends' lists
+          console.log(`Cleaning up: ${friends.length} friends, ${friendRequestsSent.length} sent requests, ${friendRequestsReceived.length} received requests`);
+          
+          // Create batch for cleanup
           const batch = writeBatch(db);
+          
+          // Remove from friends
           for (const friendId of friends) {
               const friendRef = doc(db, "users", friendId);
               batch.update(friendRef, { 
-                  friends: arrayRemove(userId),
-                  friendRequestsSent: arrayRemove(userId),
+                  friends: arrayRemove(userId)
+              });
+          }
+          
+          // Remove from sent requests
+          for (const receiverId of friendRequestsSent) {
+              const receiverRef = doc(db, "users", receiverId);
+              batch.update(receiverRef, { 
                   friendRequestsReceived: arrayRemove(userId)
               });
           }
+          
+          // Remove from received requests  
+          for (const senderId of friendRequestsReceived) {
+              const senderRef = doc(db, "users", senderId);
+              batch.update(senderRef, { 
+                  friendRequestsSent: arrayRemove(userId)
+              });
+          }
+          
+          console.log('Committing relationship cleanup...');
           await batch.commit();
+          console.log('Relationship cleanup completed');
       }
 
-      // 2. Delete user document
+      // 2. Delete user document using client SDK
+      console.log('Deleting user document...');
       const userDocRef = doc(db, "users", userId);
       await deleteDoc(userDocRef);
+      console.log('User document deleted');
 
-      // 3. Delete user from Firebase Auth
+      // 3. Delete user from Firebase Auth using Admin SDK
+      console.log('Deleting user from Firebase Auth...');
       await adminAuth.deleteUser(userId);
+      console.log('User deleted from Auth successfully');
 
       return { success: true, message: "Account deleted successfully." };
-  } catch (error) {
+  } catch (error: any) {
       console.error("Error deleting account:", error);
-      throw new Error("Failed to delete account. Please contact support if this issue persists.");
+      
+      if (error.message?.includes('not initialized')) {
+          throw new Error("Account deletion service is currently unavailable.");
+      }
+      
+      if (error.code === 'auth/user-not-found') {
+          throw new Error("User account not found in authentication system.");
+      }
+      if (error.code === 'permission-denied') {
+          throw new Error("Permission denied. Security rules may be blocking this operation.");
+      }
+      
+      throw new Error(`Failed to delete account: ${error.message || 'Unknown error'}`);
   }
 }
+

@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +24,7 @@ import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "fire
 import { doc, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import type { User } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Sign In Schema
 const signInSchema = z.object({
@@ -43,12 +45,55 @@ const signUpSchema = z.object({
 });
 type SignUpValues = z.infer<typeof signUpSchema>;
 
+function AuthSkeleton() {
+  return (
+    <Card className="w-full max-w-md">
+      <CardHeader className="text-center">
+        <div className="flex items-center gap-2 justify-center mb-2">
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                className="h-8 w-8 fill-primary"
+                aria-hidden="true"
+            >
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+            </svg>
+            <h1 className="text-2xl font-headline font-semibold text-primary">BluSocial</h1>
+        </div>
+        <CardDescription>Sign in to find your matches or create an account.</CardDescription>
+      </CardHeader>
+      <CardContent>
+          <div className="grid w-full grid-cols-2 gap-1.5 h-10 bg-muted rounded-md p-1">
+              <Skeleton className="h-full w-full rounded-sm" />
+              <Skeleton className="h-full w-full rounded-sm" />
+          </div>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-10 w-full" />
+            </div>
+             <Skeleton className="h-10 w-full" />
+          </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 
 export default function AuthPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSignInPending, setIsSignInPending] = useState(false);
   const [isSignUpPending, setIsSignUpPending] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const signInForm = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
@@ -129,131 +174,134 @@ export default function AuthPage() {
       setIsSignUpPending(false);
     }
   }
+  
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
-      <Tabs defaultValue="signin" className="w-full max-w-md">
-        <Card>
-            <CardHeader className="text-center">
-                <div className="flex items-center gap-2 justify-center mb-2">
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 24 24"
-                        className="h-8 w-8 fill-primary"
-                        aria-hidden="true"
-                    >
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                    </svg>
-                    <h1 className="text-2xl font-headline font-semibold text-primary">BluSocial</h1>
-                </div>
-                <CardDescription>Sign in to find your matches or create an account.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                </TabsList>
-                <TabsContent value="signin">
-                    <Form {...signInForm}>
-                        <form onSubmit={signInForm.handleSubmit(onSignInSubmit)} className="space-y-4 pt-4">
-                        <FormField
-                            control={signInForm.control}
-                            name="email"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <FormControl>
-                                <Input placeholder="you@example.com" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={signInForm.control}
-                            name="password"
-                            render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Password</FormLabel>
-                                <FormControl>
-                                <Input type="password" placeholder="••••••••" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                        <Button type="submit" className="w-full" disabled={isSignInPending}>
-                            {isSignInPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Sign In
-                        </Button>
-                        </form>
-                    </Form>
-                </TabsContent>
-                <TabsContent value="signup">
-                    <Form {...signUpForm}>
-                        <form onSubmit={signUpForm.handleSubmit(onSignUpSubmit)} className="space-y-4 pt-4">
-                            <FormField
-                            control={signUpForm.control}
-                            name="name"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Name</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="Your Name" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                            <FormField
-                            control={signUpForm.control}
-                            name="email"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Email</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="you@example.com" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                            <FormField
-                            control={signUpForm.control}
-                            name="password"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Password</FormLabel>
-                                <FormControl>
-                                    <Input type="password" placeholder="••••••••" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                            <FormField
-                            control={signUpForm.control}
-                            name="confirmPassword"
-                            render={({ field }) => (
-                                <FormItem>
-                                <FormLabel>Confirm Password</FormLabel>
-                                <FormControl>
-                                    <Input type="password" placeholder="••••••••" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                                </FormItem>
-                            )}
-                            />
-                        <Button type="submit" className="w-full" disabled={isSignUpPending}>
-                            {isSignUpPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Create Account
-                        </Button>
-                        </form>
-                    </Form>
-                </TabsContent>
-            </CardContent>
-        </Card>
-      </Tabs>
+      { !isClient ? <AuthSkeleton /> : (
+        <Tabs defaultValue="signin" className="w-full max-w-md">
+          <Card>
+              <CardHeader className="text-center">
+                  <div className="flex items-center gap-2 justify-center mb-2">
+                      <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          className="h-8 w-8 fill-primary"
+                          aria-hidden="true"
+                      >
+                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                      </svg>
+                      <h1 className="text-2xl font-headline font-semibold text-primary">BluSocial</h1>
+                  </div>
+                  <CardDescription>Sign in to find your matches or create an account.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                  <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="signin">Sign In</TabsTrigger>
+                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="signin">
+                      <Form {...signInForm}>
+                          <form onSubmit={signInForm.handleSubmit(onSignInSubmit)} className="space-y-4 pt-4">
+                          <FormField
+                              control={signInForm.control}
+                              name="email"
+                              render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Email</FormLabel>
+                                  <FormControl>
+                                  <Input placeholder="you@example.com" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                              )}
+                          />
+                          <FormField
+                              control={signInForm.control}
+                              name="password"
+                              render={({ field }) => (
+                              <FormItem>
+                                  <FormLabel>Password</FormLabel>
+                                  <FormControl>
+                                  <Input type="password" placeholder="••••••••" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                              </FormItem>
+                              )}
+                          />
+                          <Button type="submit" className="w-full" disabled={isSignInPending}>
+                              {isSignInPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Sign In
+                          </Button>
+                          </form>
+                      </Form>
+                  </TabsContent>
+                  <TabsContent value="signup">
+                      <Form {...signUpForm}>
+                          <form onSubmit={signUpForm.handleSubmit(onSignUpSubmit)} className="space-y-4 pt-4">
+                              <FormField
+                              control={signUpForm.control}
+                              name="name"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Name</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="Your Name" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                              />
+                              <FormField
+                              control={signUpForm.control}
+                              name="email"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Email</FormLabel>
+                                  <FormControl>
+                                      <Input placeholder="you@example.com" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                              />
+                              <FormField
+                              control={signUpForm.control}
+                              name="password"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Password</FormLabel>
+                                  <FormControl>
+                                      <Input type="password" placeholder="••••••••" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                              />
+                              <FormField
+                              control={signUpForm.control}
+                              name="confirmPassword"
+                              render={({ field }) => (
+                                  <FormItem>
+                                  <FormLabel>Confirm Password</FormLabel>
+                                  <FormControl>
+                                      <Input type="password" placeholder="••••••••" {...field} />
+                                  </FormControl>
+                                  <FormMessage />
+                                  </FormItem>
+                              )}
+                              />
+                          <Button type="submit" className="w-full" disabled={isSignUpPending}>
+                              {isSignUpPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Create Account
+                          </Button>
+                          </form>
+                      </Form>
+                  </TabsContent>
+              </CardContent>
+          </Card>
+        </Tabs>
+      )}
     </div>
   );
 }
