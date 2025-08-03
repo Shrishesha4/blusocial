@@ -389,23 +389,45 @@ export async function removeFriend({ userId, friendId }: { userId: string, frien
 }
 
 export async function deleteAccount(userId: string) {
-    if (!userId) {
-        throw new Error("User ID is required to delete an account.");
-    }
+  if (!userId) {
+      throw new Error("User ID is required to delete an account.");
+  }
 
-    if (!adminAuth) {
-        console.error("Firebase Admin SDK not initialized. Cannot delete user from Auth.");
-        throw new Error("Account deletion service is currently unavailable.");
-    }
+  if (!adminAuth) {
+      console.error("Firebase Admin SDK not initialized. Cannot delete user from Auth.");
+      throw new Error("Account deletion service is currently unavailable.");
+  }
 
-    try {
-        const userDocRef = doc(db, "users", userId);
-        await deleteDoc(userDocRef);
-        await adminAuth.deleteUser(userId);
+  try {
+      // 1. Remove user from friends' friend lists
+      const userDoc = await getDoc(doc(db, "users", userId));
+      if (userDoc.exists()) {
+          const userData = userDoc.data() as User;
+          const friends = userData.friends || [];
+          
+          // Remove this user from all friends' lists
+          const batch = writeBatch(db);
+          for (const friendId of friends) {
+              const friendRef = doc(db, "users", friendId);
+              batch.update(friendRef, { 
+                  friends: arrayRemove(userId),
+                  friendRequestsSent: arrayRemove(userId),
+                  friendRequestsReceived: arrayRemove(userId)
+              });
+          }
+          await batch.commit();
+      }
 
-        return { success: true, message: "Account deleted successfully." };
-    } catch (error) {
-        console.error("Error deleting account:", error);
-        throw new Error("Failed to delete account. Please contact support if this issue persists.");
-    }
+      // 2. Delete user document
+      const userDocRef = doc(db, "users", userId);
+      await deleteDoc(userDocRef);
+
+      // 3. Delete user from Firebase Auth
+      await adminAuth.deleteUser(userId);
+
+      return { success: true, message: "Account deleted successfully." };
+  } catch (error) {
+      console.error("Error deleting account:", error);
+      throw new Error("Failed to delete account. Please contact support if this issue persists.");
+  }
 }
