@@ -20,13 +20,14 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Download, ShareSquare } from "lucide-react";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, type User as FirebaseAuthUser } from "firebase/auth";
 import { doc, setDoc, getDoc } from "firebase/firestore";
 import { auth, db, googleProvider } from "@/lib/firebase";
 import type { User } from "@/lib/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // SVG for Google Icon
 const GoogleIcon = () => (
@@ -103,9 +104,16 @@ export default function AuthPage() {
   const [isSignUpPending, setIsSignUpPending] = useState(false);
   const [isGooglePending, setIsGooglePending] = useState(false);
   const [isClient, setIsClient] = useState(false);
+  const [detectedOS, setDetectedOS] = useState<'android' | 'ios' | 'other'>('other');
 
   useEffect(() => {
     setIsClient(true);
+    const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+    if (/android/i.test(userAgent)) {
+      setDetectedOS("android");
+    } else if (/iPad|iPhone|iPod/.test(userAgent) && !(window as any).MSStream) {
+      setDetectedOS("ios");
+    }
   }, []);
 
   const signInForm = useForm<SignInValues>({
@@ -231,140 +239,166 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)] gap-6">
       { !isClient ? <AuthSkeleton /> : (
-        <Tabs defaultValue="signin" className="w-full max-w-md">
-          <Card>
-              <CardHeader className="text-center">
-                  <div className="flex items-center gap-2 justify-center mb-2">
-                      <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          viewBox="0 0 24 24"
-                          className="h-8 w-8 fill-primary"
-                          aria-hidden="true"
-                      >
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-                      </svg>
-                      <h1 className="text-2xl font-headline font-semibold text-primary">BluSocial</h1>
-                  </div>
-                  <CardDescription>Sign in to find your matches or create an account.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                  <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isGooglePending}>
-                      {isGooglePending ? <Loader2 className="mr-2 animate-spin" /> : <GoogleIcon />}
-                      Sign in with Google
-                  </Button>
-                  <div className="my-4 flex items-center">
-                    <Separator className="flex-1" />
-                    <span className="mx-4 text-xs text-muted-foreground">OR CONTINUE WITH</span>
-                    <Separator className="flex-1" />
-                  </div>
+        <>
+          <Tabs defaultValue="signin" className="w-full max-w-md">
+            <Card>
+                <CardHeader className="text-center">
+                    <div className="flex items-center gap-2 justify-center mb-2">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            className="h-8 w-8 fill-primary"
+                            aria-hidden="true"
+                        >
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                        </svg>
+                        <h1 className="text-2xl font-headline font-semibold text-primary">BluSocial</h1>
+                    </div>
+                    <CardDescription>Sign in to find your matches or create an account.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isGooglePending}>
+                        {isGooglePending ? <Loader2 className="mr-2 animate-spin" /> : <GoogleIcon />}
+                        Sign in with Google
+                    </Button>
+                    <div className="my-4 flex items-center">
+                      <Separator className="flex-1" />
+                      <span className="mx-4 text-xs text-muted-foreground">OR CONTINUE WITH</span>
+                      <Separator className="flex-1" />
+                    </div>
 
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="signin">Sign In</TabsTrigger>
-                    <TabsTrigger value="signup">Sign Up</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="signin">
-                      <Form {...signInForm}>
-                          <form onSubmit={signInForm.handleSubmit(onSignInSubmit)} className="space-y-4 pt-4">
-                          <FormField
-                              control={signInForm.control}
-                              name="email"
-                              render={({ field }) => (
-                              <FormItem>
-                                  <FormLabel>Email</FormLabel>
-                                  <FormControl>
-                                  <Input placeholder="you@example.com" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                              </FormItem>
-                              )}
-                          />
-                          <FormField
-                              control={signInForm.control}
-                              name="password"
-                              render={({ field }) => (
-                              <FormItem>
-                                  <FormLabel>Password</FormLabel>
-                                  <FormControl>
-                                  <Input type="password" placeholder="••••••••" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                              </FormItem>
-                              )}
-                          />
-                          <Button type="submit" className="w-full" disabled={isSignInPending}>
-                              {isSignInPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              Sign In
-                          </Button>
-                          </form>
-                      </Form>
-                  </TabsContent>
-                  <TabsContent value="signup">
-                      <Form {...signUpForm}>
-                          <form onSubmit={signUpForm.handleSubmit(onSignUpSubmit)} className="space-y-4 pt-4">
-                              <FormField
-                              control={signUpForm.control}
-                              name="name"
-                              render={({ field }) => (
-                                  <FormItem>
-                                  <FormLabel>Name</FormLabel>
-                                  <FormControl>
-                                      <Input placeholder="Your Name" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                  </FormItem>
-                              )}
-                              />
-                              <FormField
-                              control={signUpForm.control}
-                              name="email"
-                              render={({ field }) => (
-                                  <FormItem>
-                                  <FormLabel>Email</FormLabel>
-                                  <FormControl>
-                                      <Input placeholder="you@example.com" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                  </FormItem>
-                              )}
-                              />
-                              <FormField
-                              control={signUpForm.control}
-                              name="password"
-                              render={({ field }) => (
-                                  <FormItem>
-                                  <FormLabel>Password</FormLabel>
-                                  <FormControl>
-                                      <Input type="password" placeholder="••••••••" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                  </FormItem>
-                              )}
-                              />
-                              <FormField
-                              control={signUpForm.control}
-                              name="confirmPassword"
-                              render={({ field }) => (
-                                  <FormItem>
-                                  <FormLabel>Confirm Password</FormLabel>
-                                  <FormControl>
-                                      <Input type="password" placeholder="••••••••" {...field} />
-                                  </FormControl>
-                                  <FormMessage />
-                                  </FormItem>
-                              )}
-                              />
-                          <Button type="submit" className="w-full" disabled={isSignUpPending}>
-                              {isSignUpPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              Create Account
-                          </Button>
-                          </form>
-                      </Form>
-                  </TabsContent>
-              </CardContent>
-          </Card>
-        </Tabs>
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="signin">Sign In</TabsTrigger>
+                      <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="signin">
+                        <Form {...signInForm}>
+                            <form onSubmit={signInForm.handleSubmit(onSignInSubmit)} className="space-y-4 pt-4">
+                            <FormField
+                                control={signInForm.control}
+                                name="email"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Email</FormLabel>
+                                    <FormControl>
+                                    <Input placeholder="you@example.com" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <FormField
+                                control={signInForm.control}
+                                name="password"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Password</FormLabel>
+                                    <FormControl>
+                                    <Input type="password" placeholder="••••••••" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                            <Button type="submit" className="w-full" disabled={isSignInPending}>
+                                {isSignInPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Sign In
+                            </Button>
+                            </form>
+                        </Form>
+                    </TabsContent>
+                    <TabsContent value="signup">
+                        <Form {...signUpForm}>
+                            <form onSubmit={signUpForm.handleSubmit(onSignUpSubmit)} className="space-y-4 pt-4">
+                                <FormField
+                                control={signUpForm.control}
+                                name="name"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Name</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="Your Name" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                                <FormField
+                                control={signUpForm.control}
+                                name="email"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Email</FormLabel>
+                                    <FormControl>
+                                        <Input placeholder="you@example.com" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                                <FormField
+                                control={signUpForm.control}
+                                name="password"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Password</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" placeholder="••••••••" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                                <FormField
+                                control={signUpForm.control}
+                                name="confirmPassword"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Confirm Password</FormLabel>
+                                    <FormControl>
+                                        <Input type="password" placeholder="••••••••" {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                                />
+                            <Button type="submit" className="w-full" disabled={isSignUpPending}>
+                                {isSignUpPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Create Account
+                            </Button>
+                            </form>
+                        </Form>
+                    </TabsContent>
+                </CardContent>
+            </Card>
+          </Tabs>
+          
+          {detectedOS === 'android' && (
+              <Alert className="w-full max-w-md">
+                  <Download className="h-4 w-4" />
+                  <AlertTitle>Get the Android App</AlertTitle>
+                  <AlertDescription className="flex justify-between items-center">
+                      For the best experience, download the native Android app.
+                      <Button size="sm" asChild>
+                          <a href="/blusocial.apk" download>Download APK</a>
+                      </Button>
+                  </AlertDescription>
+              </Alert>
+          )}
+
+          {detectedOS === 'ios' && (
+              <Alert className="w-full max-w-md">
+                  <ShareSquare className="h-4 w-4" />
+                  <AlertTitle>Install on your iPhone</AlertTitle>
+                  <AlertDescription>
+                      For a native app experience, tap the Share icon in Safari and select &quot;Add to Home Screen&quot;.
+                  </AlertDescription>
+              </Alert>
+          )}
+
+        </>
       )}
     </div>
   );
