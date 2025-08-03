@@ -4,9 +4,10 @@ import 'dotenv/config'; // Ensure environment variables are loaded
 
 let adminApp: admin.app.App | null = null;
 
-const initializeAdmin = () => {
-  if (adminApp) return;
+export const initializeAdmin = () => {
+  if (adminApp) return; // Already initialized
 
+  // If already initialized by another part of the app
   if (admin.apps.length > 0) {
     adminApp = admin.app();
     return;
@@ -16,7 +17,7 @@ const initializeAdmin = () => {
     const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
     if (!serviceAccountJson) {
       console.error('CRITICAL: GOOGLE_SERVICE_ACCOUNT_JSON environment variable is not set. Firebase Admin SDK cannot be initialized.');
-      return;
+      return; // Do not initialize
     }
     
     const serviceAccount = JSON.parse(serviceAccountJson);
@@ -27,10 +28,11 @@ const initializeAdmin = () => {
     
   } catch (error) {
     console.error('CRITICAL: Firebase Admin SDK initialization failed.', error);
-    adminApp = null;
+    adminApp = null; // Ensure it's null on failure
   }
 };
 
+// You can still call this at the module level for services that might need it on startup.
 initializeAdmin();
 
 export function getAdminAuth(): admin.auth.Auth {

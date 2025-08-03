@@ -7,7 +7,7 @@ import type { ProfileAdvisorInput, ProfileAdvisorOutput } from "@/ai/flows/profi
 import { db } from "@/lib/firebase";
 import { collection, doc, serverTimestamp, setDoc, getDocs, query, where, getDoc, updateDoc, arrayUnion, arrayRemove, writeBatch, runTransaction, addDoc, limit, deleteDoc } from "firebase/firestore";
 import type { User } from "@/lib/types";
-import { getAdminAuth, getAdminMessaging } from "@/lib/firebase-admin";
+import { getAdminAuth, getAdminMessaging, initializeAdmin } from "@/lib/firebase-admin";
 import { getDistance } from "@/lib/location";
 
 export async function getAIProfileAdvice(
@@ -41,6 +41,7 @@ async function sendPushNotification({
   url: string;
 }) {
   try {
+    initializeAdmin(); // Ensure admin is initialized
     const adminMessaging = getAdminMessaging();
      if (!recipient.fcmTokens || recipient.fcmTokens.length === 0) {
       console.log(`User ${recipient.name} has no FCM tokens, skipping notification.`);
@@ -317,6 +318,7 @@ export async function sendMessage({ chatId, senderId, text }: { chatId: string, 
 
 export async function findAndSuggestMatch(userId: string) {
   try {
+    initializeAdmin(); // Ensure admin is initialized
     const adminMessaging = getAdminMessaging();
     const userRef = doc(db, "users", userId);
     const userSnap = await getDoc(userRef);
@@ -391,6 +393,8 @@ export async function deleteAccount(userId: string) {
   }
 
   try {
+    initializeAdmin(); // Ensure admin is initialized before any action
+
     // 1. Clean up user's relationships in Firestore (friends lists, requests, etc.)
     const userDocRef = doc(db, "users", userId);
     const userDoc = await getDoc(userDocRef);
@@ -435,7 +439,7 @@ export async function deleteAccount(userId: string) {
 
     // 3. Delete the user from Firebase Authentication using the Admin SDK
     console.log(`Deleting user from Firebase Auth: ${userId}`);
-    const adminAuth = getAdminAuth(); // This will throw if not initialized
+    const adminAuth = getAdminAuth(); // This should now work reliably
     await adminAuth.deleteUser(userId);
     console.log(`User deleted from Auth successfully: ${userId}`);
 
